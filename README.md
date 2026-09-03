@@ -1,29 +1,13 @@
---==================================================
--- FIGHT FOR BRAINROTS
--- ADMIN PANEL CLIENT
---==================================================
+--// ADMIN PANEL CLIENT
+--// Put this LocalScript in StarterPlayerScripts
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
-
---==================================================
--- ADMIN IDS
---==================================================
-
-local ADMINS = {
-	[11607704974] = true,
-
-	-- Add more:
-	-- [123456789] = true,
-}
-
-if not ADMINS[player.UserId] then
-	return
-end
+local playerGui = player:WaitForChild("PlayerGui")
 
 --==================================================
 -- REMOTES
@@ -33,3995 +17,1101 @@ local AdminRemotes = ReplicatedStorage:WaitForChild("AdminRemotes")
 local Command = AdminRemotes:WaitForChild("Command")
 local UI = AdminRemotes:WaitForChild("UI")
 
-local OtherRemotes = ReplicatedStorage:FindFirstChild("OtherRemotes")
-local ActionAnnouncement
+local OtherRemotes = ReplicatedStorage:WaitForChild("OtherRemotes")
+local ActionAnnouncement = OtherRemotes:WaitForChild("ActionAnnouncement")
 
-if OtherRemotes then
-	ActionAnnouncement = OtherRemotes:FindFirstChild("ActionAnnouncement")
+-- Poll system
+local FirePollRemote = OtherRemotes:WaitForChild("FirePoll")
+local EndPollRemote = OtherRemotes:WaitForChild("EndPoll")
+local VotePollRemote = OtherRemotes:WaitForChild("VotePoll")
+
+-- Moderation system
+local KickPlayerRemote = OtherRemotes:WaitForChild("KickPlayer")
+local BanPlayerRemote = OtherRemotes:WaitForChild("BanPlayer")
+local UnbanPlayerRemote = OtherRemotes:WaitForChild("UnbanPlayer")
+local GetBanListRemote = OtherRemotes:WaitForChild("GetBanList")
+local GetModLogRemote = OtherRemotes:FindFirstChild("GetModLog")
+
+--==================================================
+-- REMOVE OLD PANEL
+--==================================================
+
+local oldGui = playerGui:FindFirstChild("AdminPanel")
+
+if oldGui then
+	oldGui:Destroy()
 end
 
 --==================================================
 -- COLORS
 --==================================================
 
-local CYAN = Color3.fromRGB(0, 255, 220)
-local CYAN_DARK = Color3.fromRGB(0, 180, 160)
+local BG = Color3.fromRGB(13, 15, 19)
+local PANEL = Color3.fromRGB(20, 23, 29)
+local PANEL2 = Color3.fromRGB(25, 29, 36)
+local BUTTON = Color3.fromRGB(31, 36, 44)
+local BUTTON_HOVER = Color3.fromRGB(40, 47, 57)
 
-local DARK = Color3.fromRGB(6, 12, 13)
-local DARK2 = Color3.fromRGB(10, 21, 22)
-local DARK3 = Color3.fromRGB(15, 31, 32)
-local DARK4 = Color3.fromRGB(21, 43, 43)
+local WHITE = Color3.fromRGB(240, 243, 248)
+local GRAY = Color3.fromRGB(145, 153, 165)
+local CYAN = Color3.fromRGB(55, 210, 255)
 
-local WHITE = Color3.fromRGB(245, 255, 252)
-local GRAY = Color3.fromRGB(145, 170, 165)
+local GREEN = Color3.fromRGB(70, 220, 105)
+local GOLD = Color3.fromRGB(255, 195, 45)
+local RED = Color3.fromRGB(245, 65, 65)
 
-local GREEN = Color3.fromRGB(45, 220, 90)
-local GOLD = Color3.fromRGB(255, 200, 45)
-local RED = Color3.fromRGB(235, 60, 60)
-local PURPLE = Color3.fromRGB(155, 80, 255)
+--==================================================
+-- HELPERS
+--==================================================
+
+local function corner(obj, radius)
+	local c = Instance.new("UICorner")
+	c.CornerRadius = UDim.new(0, radius or 8)
+	c.Parent = obj
+	return c
+end
+
+local function stroke(obj, color, thickness, transparency)
+	local s = Instance.new("UIStroke")
+	s.Color = color or Color3.fromRGB(50, 55, 65)
+	s.Thickness = thickness or 1
+	s.Transparency = transparency or 0
+	s.Parent = obj
+	return s
+end
+
+local function createText(parent, text, size, color)
+	local label = Instance.new("TextLabel")
+	label.BackgroundTransparency = 1
+	label.Text = text or ""
+	label.TextColor3 = color or WHITE
+	label.TextSize = size or 14
+	label.Font = Enum.Font.GothamSemibold
+	label.TextXAlignment = Enum.TextXAlignment.Left
+	label.Parent = parent
+	return label
+end
+
+local function makeButton(parent, text)
+	local button = Instance.new("TextButton")
+	button.AutoButtonColor = false
+	button.BackgroundColor3 = BUTTON
+	button.Text = text
+	button.TextColor3 = WHITE
+	button.TextSize = 13
+	button.Font = Enum.Font.GothamBold
+	button.BorderSizePixel = 0
+	button.Parent = parent
+
+	corner(button, 8)
+
+	button.MouseEnter:Connect(function()
+		TweenService:Create(
+			button,
+			TweenInfo.new(0.12),
+			{BackgroundColor3 = BUTTON_HOVER}
+		):Play()
+	end)
+
+	button.MouseLeave:Connect(function()
+		TweenService:Create(
+			button,
+			TweenInfo.new(0.12),
+			{BackgroundColor3 = BUTTON}
+		):Play()
+	end)
+
+	return button
+end
+
+local function makeTextBox(parent, placeholder)
+	local box = Instance.new("TextBox")
+	box.BackgroundColor3 = BUTTON
+	box.BorderSizePixel = 0
+	box.TextColor3 = WHITE
+	box.PlaceholderColor3 = GRAY
+	box.PlaceholderText = placeholder
+	box.TextSize = 13
+	box.Font = Enum.Font.Gotham
+	box.ClearTextOnFocus = false
+	box.Parent = parent
+
+	corner(box, 8)
+	stroke(box, Color3.fromRGB(48, 54, 64), 1, 0.2)
+
+	return box
+end
 
 --==================================================
 -- GUI
 --==================================================
 
 local gui = Instance.new("ScreenGui")
-gui.Name = "FightForBrainrotsAdmin"
+gui.Name = "AdminPanel"
 gui.ResetOnSpawn = false
 gui.IgnoreGuiInset = true
-gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-gui.DisplayOrder = 9999
-gui.Parent = player:WaitForChild("PlayerGui")
+gui.Enabled = false
+gui.Parent = playerGui
 
 --==================================================
--- SOUND
---==================================================
-
-local clickSound = Instance.new("Sound")
-clickSound.Name = "AdminClick"
-clickSound.SoundId = "rbxassetid://6026984224"
-clickSound.Volume = 0.45
-clickSound.PlaybackSpeed = 1.15
-clickSound.Parent = gui
-
-local function playClick()
-	clickSound.TimePosition = 0
-	clickSound:Play()
-end
-
---==================================================
--- HELPERS
---==================================================
-
-local function noOutline(object)
-	if object:IsA("GuiObject") then
-		object.BorderSizePixel = 0
-	end
-end
-
-local function corner(object, radius)
-	local c = Instance.new("UICorner")
-	c.CornerRadius = UDim.new(0, radius)
-	c.Parent = object
-	return c
-end
-
-local function tween(object, info, properties)
-	return TweenService:Create(object, info, properties)
-end
-
---==================================================
--- OPEN GEAR BUTTON
---==================================================
-
-local openButton = Instance.new("ImageButton")
-
-openButton.Name = "AdminGear"
-openButton.AnchorPoint = Vector2.new(1, 0)
-openButton.Position = UDim2.new(1, -18, 0, 18)
-openButton.Size = UDim2.fromOffset(44, 44)
-
-openButton.BackgroundColor3 = DARK2
-openButton.BackgroundTransparency = 0.03
-
-openButton.Image = "rbxassetid://104919049969988"
-openButton.ImageColor3 = CYAN
-openButton.ImageTransparency = 0
-
-openButton.ScaleType = Enum.ScaleType.Fit
-
-openButton.AutoButtonColor = false
-openButton.ZIndex = 100
-
-noOutline(openButton)
-corner(openButton, 10)
-
-openButton.Parent = gui
-
--- subtle gradient
-local gearGradient = Instance.new("UIGradient")
-gearGradient.Rotation = 90
-gearGradient.Color = ColorSequence.new({
-	ColorSequenceKeypoint.new(0, DARK4),
-	ColorSequenceKeypoint.new(1, DARK2),
-})
-gearGradient.Parent = openButton
-
--- hover
-openButton.MouseEnter:Connect(function()
-	tween(
-		openButton,
-		TweenInfo.new(0.12),
-		{
-			BackgroundColor3 = DARK4,
-			ImageColor3 = WHITE,
-		}
-	):Play()
-end)
-
-openButton.MouseLeave:Connect(function()
-	tween(
-		openButton,
-		TweenInfo.new(0.12),
-		{
-			BackgroundColor3 = DARK2,
-			ImageColor3 = CYAN,
-		}
-	):Play()
-end)
-
---==================================================
--- MAIN PANEL
---==================================================
-
-local panel = Instance.new("Frame")
-
-panel.Name = "AdminTerminal"
-panel.AnchorPoint = Vector2.new(0.5, 0.5)
-panel.Position = UDim2.fromScale(0.5, 0.5)
-panel.Size = UDim2.fromOffset(560, 365)
-
-panel.BackgroundColor3 = DARK
-panel.BackgroundTransparency = 0.02
-
-panel.Visible = false
-panel.Active = true
-panel.ZIndex = 200
-
-noOutline(panel)
-corner(panel, 10)
-
-panel.Parent = gui
-
-local panelScale = Instance.new("UIScale")
-panelScale.Scale = 0.88
-panelScale.Parent = panel
-
---==================================================
--- HEADER
---==================================================
-
-local header = Instance.new("Frame")
-
-header.Name = "Header"
-header.Size = UDim2.new(1, 0, 0, 48)
-
-header.BackgroundColor3 = CYAN
-header.ZIndex = 201
-
-noOutline(header)
-corner(header, 10)
-
-header.Parent = panel
-
-local headerBottom = Instance.new("Frame")
-
-headerBottom.Position = UDim2.new(0, 0, 1, -10)
-headerBottom.Size = UDim2.new(1, 0, 0, 10)
-
-headerBottom.BackgroundColor3 = CYAN
-headerBottom.ZIndex = 201
-
-noOutline(headerBottom)
-
-headerBottom.Parent = header
-
---==================================================
--- TITLE
---==================================================
-
-local title = Instance.new("TextLabel")
-
-title.BackgroundTransparency = 1
-title.Position = UDim2.fromOffset(15, 0)
-title.Size = UDim2.new(1, -220, 1, 0)
-
-title.Text = "ADMIN TERMINAL"
-title.TextColor3 = Color3.fromRGB(4, 28, 27)
-title.TextSize = 18
-title.Font = Enum.Font.GothamBold
-title.TextXAlignment = Enum.TextXAlignment.Left
-
-title.ZIndex = 202
-title.Parent = header
-
-local subtitle = Instance.new("TextLabel")
-
-subtitle.BackgroundTransparency = 1
-subtitle.Position = UDim2.new(1, -220, 0, 0)
-subtitle.Size = UDim2.fromOffset(170, 48)
-
-subtitle.Text = "FIGHT FOR BRAINROTS"
-subtitle.TextColor3 = Color3.fromRGB(5, 55, 51)
-subtitle.TextSize = 8
-subtitle.Font = Enum.Font.GothamBold
-subtitle.TextXAlignment = Enum.TextXAlignment.Right
-
-subtitle.ZIndex = 202
-subtitle.Parent = header
-
---==================================================
--- CLOSE BUTTON
---==================================================
-
-local close = Instance.new("TextButton")
-
-close.Name = "Close"
-close.AnchorPoint = Vector2.new(1, 0)
-close.Position = UDim2.new(1, -7, 0, 7)
-close.Size = UDim2.fromOffset(34, 34)
-
-close.BackgroundColor3 = DARK2
-close.Text = "×"
-
-close.TextColor3 = CYAN
-close.TextSize = 24
-close.Font = Enum.Font.GothamBold
-
-close.AutoButtonColor = false
-close.ZIndex = 203
-
-noOutline(close)
-corner(close, 7)
-
-close.Parent = header
-
---==================================================
--- CONTENT
---==================================================
-
-local content = Instance.new("Frame")
-
-content.Position = UDim2.fromOffset(10, 58)
-content.Size = UDim2.new(1, -20, 1, -68)
-
-content.BackgroundTransparency = 1
-content.ZIndex = 201
-
-content.Parent = panel
-
---==================================================
--- TABS
---==================================================
-
-local tabHolder = Instance.new("Frame")
-
-tabHolder.Size = UDim2.new(1, 0, 0, 42)
-tabHolder.BackgroundTransparency = 1
-tabHolder.ZIndex = 202
-
-tabHolder.Parent = content
-
-local tabLayout = Instance.new("UIListLayout")
-
-tabLayout.FillDirection = Enum.FillDirection.Horizontal
-tabLayout.Padding = UDim.new(0, 5)
-tabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-tabLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-
-tabLayout.Parent = tabHolder
-
-local function makeTab(text)
-
-	local button = Instance.new("TextButton")
-
-	button.Size = UDim2.fromOffset(98, 38)
-
-	button.BackgroundColor3 = DARK2
-	button.Text = text
-
-	button.TextColor3 = GRAY
-	button.TextSize = 10
-	button.Font = Enum.Font.GothamBold
-
-	button.AutoButtonColor = false
-	button.ZIndex = 203
-
-	noOutline(button)
-	corner(button, 6)
-
-	button.Parent = tabHolder
-
-	button.Activated:Connect(function()
-		playClick()
-	end)
-
-	return button
-end
-
-local luckTab = makeTab("LUCK")
-local spawnTab = makeTab("SPAWNER")
-local playerTab = makeTab("PLAYERS")
-local moderateTab = makeTab("MODERATE")
-local announcementTab = makeTab("ANNOUNCE")
-
---==================================================
--- PAGE HOLDER
---==================================================
-
-local pageHolder = Instance.new("Frame")
-
-pageHolder.Position = UDim2.fromOffset(0, 48)
-pageHolder.Size = UDim2.new(1, 0, 1, -48)
-
-pageHolder.BackgroundTransparency = 1
-pageHolder.ZIndex = 202
-
-pageHolder.Parent = content
-
-local function clearPage()
-	for _, child in ipairs(pageHolder:GetChildren()) do
-		child:Destroy()
-	end
-end
-
---==================================================
--- LABEL
---==================================================
-
-local function makeLabel(parent, text, position, size)
-
-	local label = Instance.new("TextLabel")
-
-	label.BackgroundTransparency = 1
-	label.Position = position
-	label.Size = size
-
-	label.Text = text
-	label.TextColor3 = CYAN
-	label.TextSize = 14
-	label.Font = Enum.Font.GothamBold
-
-	label.TextXAlignment = Enum.TextXAlignment.Left
-	label.ZIndex = 203
-
-	label.Parent = parent
-
-	return label
-end
-
---==================================================
--- BUTTON
---==================================================
-
-local function makeButton(parent, text, position, size, color)
-
-	local button = Instance.new("TextButton")
-
-	button.Position = position
-	button.Size = size
-
-	button.BackgroundColor3 = color or DARK3
-
-	button.Text = text
-	button.TextColor3 = WHITE
-	button.TextSize = 13
-	button.Font = Enum.Font.GothamBold
-
-	button.AutoButtonColor = false
-	button.ZIndex = 204
-
-	noOutline(button)
-	corner(button, 7)
-
-	button.Parent = parent
-
-	local normalColor = color or DARK3
-
-	button.MouseEnter:Connect(function()
-
-		tween(
-			button,
-			TweenInfo.new(0.1),
-			{
-				BackgroundColor3 =
-					normalColor:Lerp(
-						Color3.new(1, 1, 1),
-						0.07
-					)
-			}
-		):Play()
-
-	end)
-
-	button.MouseLeave:Connect(function()
-
-		tween(
-			button,
-			TweenInfo.new(0.1),
-			{
-				BackgroundColor3 = normalColor
-			}
-		):Play()
-
-	end)
-
-	button.Activated:Connect(function()
-		playClick()
-	end)
-
-	return button
-end
-
---==================================================
--- TEXT BOX
---==================================================
-
-local function makeBox(parent, placeholder, position, size)
-
-	local box = Instance.new("TextBox")
-
-	box.Position = position
-	box.Size = size
-
-	box.BackgroundColor3 = DARK2
-
-	box.Text = ""
-	box.PlaceholderText = placeholder
-	box.PlaceholderColor3 = GRAY
-
-	box.TextColor3 = WHITE
-	box.TextSize = 13
-	box.Font = Enum.Font.Gotham
-
-	box.ClearTextOnFocus = false
-	box.ZIndex = 204
-
-	noOutline(box)
-	corner(box, 6)
-
-	box.Parent = parent
-
-	return box
-end
-
---==================================================
--- GLOBAL STATE
---==================================================
-
-local globalEnabled = false
-
---==================================================
--- LUCK HUD
---==================================================
-
-local luckHud = Instance.new("Frame")
-
-luckHud.Name = "LuckHUD"
-
-luckHud.AnchorPoint = Vector2.new(1, 1)
-luckHud.Position = UDim2.new(1, -16, 1, -16)
-
-luckHud.Size = UDim2.fromOffset(180, 66)
-
-luckHud.BackgroundColor3 = DARK
-luckHud.BackgroundTransparency = 0.02
-
-luckHud.Visible = false
-luckHud.ZIndex = 500
-
-noOutline(luckHud)
-corner(luckHud, 9)
-
-luckHud.Parent = gui
-
---==================================================
--- CLOVER
---==================================================
-
-local cloverHolder = Instance.new("Frame")
-
-cloverHolder.BackgroundTransparency = 1
-cloverHolder.Position = UDim2.fromOffset(8, 9)
-cloverHolder.Size = UDim2.fromOffset(45, 45)
-cloverHolder.ZIndex = 501
-
-cloverHolder.Parent = luckHud
-
-local cloverParts = {}
-
-local function makeLeaf(position, size)
-
-	local leaf = Instance.new("Frame")
-
-	leaf.Position = position
-	leaf.Size = size
-
-	leaf.BackgroundColor3 = GREEN
-	leaf.BorderSizePixel = 0
-
-	corner(
-		leaf,
-		math.floor(
-			math.min(
-				size.X.Offset,
-				size.Y.Offset
-			) / 2
-		)
-	)
-
-	leaf.ZIndex = 502
-	leaf.Parent = cloverHolder
-
-	table.insert(cloverParts, leaf)
-
-	return leaf
-end
-
-makeLeaf(UDim2.fromOffset(10, 0), UDim2.fromOffset(22, 22))
-makeLeaf(UDim2.fromOffset(23, 10), UDim2.fromOffset(22, 22))
-makeLeaf(UDim2.fromOffset(10, 23), UDim2.fromOffset(22, 22))
-makeLeaf(UDim2.fromOffset(-3, 10), UDim2.fromOffset(22, 22))
-
-local cloverCenter = Instance.new("Frame")
-
-cloverCenter.Position = UDim2.fromOffset(14, 14)
-cloverCenter.Size = UDim2.fromOffset(16, 16)
-
-cloverCenter.BackgroundColor3 = GREEN
-cloverCenter.BorderSizePixel = 0
-
-corner(cloverCenter, 8)
-
-cloverCenter.ZIndex = 503
-cloverCenter.Parent = cloverHolder
-
-table.insert(cloverParts, cloverCenter)
-
-local stem = Instance.new("Frame")
-
-stem.Position = UDim2.fromOffset(18, 32)
-stem.Size = UDim2.fromOffset(6, 13)
-
-stem.BackgroundColor3 = GREEN
-stem.BorderSizePixel = 0
-stem.Rotation = -15
-
-corner(stem, 3)
-
-stem.ZIndex = 502
-stem.Parent = cloverHolder
-
-table.insert(cloverParts, stem)
-
---==================================================
--- LUCK TEXT
---==================================================
-
-local luckMultiplier = Instance.new("TextLabel")
-
-luckMultiplier.BackgroundTransparency = 1
-luckMultiplier.Position = UDim2.fromOffset(62, 7)
-luckMultiplier.Size = UDim2.new(1, -68, 0, 24)
-
-luckMultiplier.Text = "2X LUCK"
-luckMultiplier.TextColor3 = WHITE
-luckMultiplier.TextSize = 17
-luckMultiplier.Font = Enum.Font.GothamBold
-luckMultiplier.TextXAlignment = Enum.TextXAlignment.Left
-luckMultiplier.ZIndex = 504
-
-luckMultiplier.Parent = luckHud
-
-local luckScope = Instance.new("TextLabel")
-
-luckScope.BackgroundTransparency = 1
-luckScope.Position = UDim2.fromOffset(62, 29)
-luckScope.Size = UDim2.new(1, -68, 0, 15)
-
-luckScope.Text = "SERVER"
-luckScope.TextColor3 = CYAN
-luckScope.TextSize = 9
-luckScope.Font = Enum.Font.GothamBold
-luckScope.TextXAlignment = Enum.TextXAlignment.Left
-luckScope.ZIndex = 504
-
-luckScope.Parent = luckHud
-
-local luckTimer = Instance.new("TextLabel")
-
-luckTimer.BackgroundTransparency = 1
-luckTimer.Position = UDim2.fromOffset(62, 45)
-luckTimer.Size = UDim2.new(1, -68, 0, 15)
-
-luckTimer.Text = "15:00"
-luckTimer.TextColor3 = GRAY
-luckTimer.TextSize = 11
-luckTimer.Font = Enum.Font.Gotham
-luckTimer.TextXAlignment = Enum.TextXAlignment.Left
-luckTimer.ZIndex = 504
-
-luckTimer.Parent = luckHud
-
---==================================================
--- LUCK STATE
---==================================================
-
-local luckEndTime = 0
-local currentLuckMultiplier = nil
-
-local function setCloverColor(color)
-
-	for _, part in ipairs(cloverParts) do
-		part.BackgroundColor3 = color
-	end
-
-end
-
-local function updateLuckColor(multiplier)
-
-	if multiplier == 2 then
-		setCloverColor(GREEN)
-
-	elseif multiplier == 4 then
-		setCloverColor(GOLD)
-
-	elseif multiplier == 8 then
-		setCloverColor(RED)
-	end
-
-end
-
---==================================================
--- LUCK TIMER
---==================================================
-
-task.spawn(function()
-
-	while true do
-
-		task.wait(0.25)
-
-		if luckHud.Visible then
-
-			local remaining =
-				math.max(
-					0,
-					luckEndTime - os.clock()
-				)
-
-			local minutes =
-				math.floor(remaining / 60)
-
-			local seconds =
-				math.floor(remaining % 60)
-
-			luckTimer.Text =
-				string.format(
-					"%02d:%02d",
-					minutes,
-					seconds
-				)
-
-			if remaining <= 0 then
-
-				luckHud.Visible = false
-				luckEndTime = 0
-				currentLuckMultiplier = nil
-
-			end
-
-		end
-
-	end
-
-end)
-
---==================================================
--- ANNOUNCEMENT
---==================================================
-
-local announcementFrame = Instance.new("Frame")
-
-announcementFrame.Name = "Announcement"
-
-announcementFrame.AnchorPoint = Vector2.new(0.5, 0)
-announcementFrame.Position = UDim2.new(0.5, 0, 0, -80)
-
-announcementFrame.Size = UDim2.fromOffset(470, 54)
-
-announcementFrame.BackgroundColor3 = DARK
-announcementFrame.BackgroundTransparency = 0.03
-
-announcementFrame.Visible = false
-announcementFrame.ZIndex = 700
-
-noOutline(announcementFrame)
-corner(announcementFrame, 8)
-
-announcementFrame.Parent = gui
-
-local announcementAccent = Instance.new("Frame")
-
-announcementAccent.Position = UDim2.fromOffset(0, 0)
-announcementAccent.Size = UDim2.fromOffset(4, 54)
-
-announcementAccent.BackgroundColor3 = CYAN
-announcementAccent.ZIndex = 701
-
-noOutline(announcementAccent)
-corner(announcementAccent, 4)
-
-announcementAccent.Parent = announcementFrame
-
-local announcementText = Instance.new("TextLabel")
-
-announcementText.BackgroundTransparency = 1
-
-announcementText.Position = UDim2.fromOffset(15, 5)
-announcementText.Size = UDim2.new(1, -25, 1, -10)
-
-announcementText.Text = ""
-announcementText.TextColor3 = WHITE
-announcementText.TextSize = 15
-announcementText.Font = Enum.Font.GothamBold
-announcementText.TextWrapped = true
-
-announcementText.ZIndex = 702
-
-announcementText.Parent = announcementFrame
-
-local announcementNumber = 0
-
-local function showAnnouncement(text)
-
-	if typeof(text) ~= "string" or text == "" then
-		return
-	end
-
-	announcementNumber += 1
-
-	local current = announcementNumber
-
-	announcementText.Text = text
-	announcementFrame.Visible = true
-
-	announcementFrame.Position =
-		UDim2.new(0.5, 0, 0, -80)
-
-	tween(
-		announcementFrame,
-		TweenInfo.new(
-			0.22,
-			Enum.EasingStyle.Quart,
-			Enum.EasingDirection.Out
-		),
-		{
-			Position =
-				UDim2.new(
-					0.5,
-					0,
-					0,
-					14
-				)
-		}
-	):Play()
-
-	task.delay(4, function()
-
-		if current ~= announcementNumber then
-			return
-		end
-
-		local animation =
-			tween(
-				announcementFrame,
-				TweenInfo.new(
-					0.2,
-					Enum.EasingStyle.Quad,
-					Enum.EasingDirection.In
-				),
-				{
-					Position =
-						UDim2.new(
-							0.5,
-							0,
-							0,
-							-80
-						)
-				}
-			)
-
-		animation:Play()
-		animation.Completed:Wait()
-
-		if current == announcementNumber then
-			announcementFrame.Visible = false
-		end
-
-	end)
-
-end
-
---==================================================
--- LUCK PAGE
---==================================================
-
-local function showLuckPage()
-
-	clearPage()
-
-	makeLabel(
-		pageHolder,
-		"SERVER LUCK",
-		UDim2.fromOffset(0, 0),
-		UDim2.new(1, 0, 0, 25)
-	)
-
-	local info = Instance.new("TextLabel")
-
-	info.BackgroundTransparency = 1
-	info.Position = UDim2.fromOffset(0, 24)
-	info.Size = UDim2.new(1, 0, 0, 22)
-
-	info.Text = "Select a multiplier • same multiplier adds time"
-	info.TextColor3 = GRAY
-	info.TextSize = 11
-	info.Font = Enum.Font.Gotham
-
-	info.TextXAlignment = Enum.TextXAlignment.Left
-	info.ZIndex = 203
-
-	info.Parent = pageHolder
-
-	-- 2X
-	local luck2 = makeButton(
-		pageHolder,
-		"🍀   2X",
-		UDim2.fromOffset(12, 57),
-		UDim2.fromOffset(165, 55),
-		Color3.fromRGB(25, 125, 65)
-	)
-
-	luck2.TextColor3 = GREEN
-
-	-- 4X
-	local luck4 = makeButton(
-		pageHolder,
-		"🍀   4X",
-		UDim2.fromOffset(190, 57),
-		UDim2.fromOffset(165, 55),
-		Color3.fromRGB(175, 130, 20)
-	)
-
-	luck4.TextColor3 = GOLD
-
-	-- 8X
-	local luck8 = makeButton(
-		pageHolder,
-		"🍀   8X",
-		UDim2.fromOffset(368, 57),
-		UDim2.fromOffset(165, 55),
-		Color3.fromRGB(170, 35, 35)
-	)
-
-	luck8.TextColor3 = RED
-
-	-- GLOBAL
-	local globalButton = makeButton(
-		pageHolder,
-		"",
-		UDim2.fromOffset(105, 125),
-		UDim2.fromOffset(350, 46),
-		DARK3
-	)
-
-	local function updateGlobalButton()
-
-		if globalEnabled then
-
-			globalButton.Text = "GLOBAL: ON"
-			globalButton.TextColor3 = WHITE
-
-			globalButton.BackgroundColor3 =
-				Color3.fromRGB(25, 150, 65)
-
-		else
-
-			globalButton.Text =
-				"GLOBAL: OFF  •  SERVER ONLY"
-
-			globalButton.TextColor3 = WHITE
-
-			globalButton.BackgroundColor3 =
-				Color3.fromRGB(35, 80, 60)
-
-		end
-
-	end
-
-	updateGlobalButton()
-
-	globalButton.Activated:Connect(function()
-
-		globalEnabled = not globalEnabled
-
-		updateGlobalButton()
-
-	end)
-
-	-- STOP
-	local stop = makeButton(
-		pageHolder,
-		"STOP ALL LUCK",
-		UDim2.fromOffset(105, 182),
-		UDim2.fromOffset(350, 46),
-		RED
-	)
-
-	-- ACTIVATE
-	local function activate(multiplier)
-
-		Command:FireServer(
-			"ServerLuck",
-			{
-				Multiplier = multiplier,
-				Global = globalEnabled,
-			}
-		)
-
-	end
-
-	luck2.Activated:Connect(function()
-		activate(2)
-	end)
-
-	luck4.Activated:Connect(function()
-		activate(4)
-	end)
-
-	luck8.Activated:Connect(function()
-		activate(8)
-	end)
-
-	stop.Activated:Connect(function()
-
-		Command:FireServer(
-			"StopLuck",
-			{
-				Global = globalEnabled,
-			}
-		)
-
-	end)
-
-end
-
---==================================================
--- BRAINROTS
---==================================================
-
-local brainrots = {
-	"TungTungSahur",
-	"TralaleroTralala",
-	"BombardiroCrocodilo",
-	"CappuccinoAssassino",
-	"LiriliLarila",
-	"BallerinaCappuccina",
-	"StudzillaRex",
-	"NeonNugget",
-	"VoltViper",
-	"PrismPouncer",
-	"MagmaMuffin",
-	"Chromaclaw",
-	"TurboToast",
-	"GlitterGolem",
-	"BoomblockBarry",
-	"CascadeCrab",
-}
-
---==================================================
--- SPAWNER
---==================================================
-
-local function showSpawnerPage()
-
-	clearPage()
-
-	makeLabel(
-		pageHolder,
-		"SPAWNER",
-		UDim2.fromOffset(0, 0),
-		UDim2.new(1, 0, 0, 25)
-	)
-
-	local scroll = Instance.new("ScrollingFrame")
-
-	scroll.Position = UDim2.fromOffset(8, 32)
-	scroll.Size = UDim2.new(1, -16, 1, -32)
-
-	scroll.BackgroundColor3 = DARK2
-	scroll.BackgroundTransparency = 0.05
-
-	scroll.BorderSizePixel = 0
-	scroll.ScrollBarThickness = 3
-	scroll.ScrollBarImageColor3 = CYAN
-
-	scroll.CanvasSize =
-		UDim2.new(
-			0,
-			0,
-			0,
-			#brainrots * 38
-		)
-
-	scroll.ZIndex = 204
-
-	corner(scroll, 6)
-	scroll.Parent = pageHolder
-
-	local layout = Instance.new("UIListLayout")
-
-	layout.Padding = UDim.new(0, 4)
-	layout.Parent = scroll
-
-	for _, id in ipairs(brainrots) do
-
-		local button = makeButton(
-			scroll,
-			id,
-			UDim2.new(),
-			UDim2.new(1, -8, 0, 34),
-			DARK3
-		)
-
-		button.Activated:Connect(function()
-
-			Command:FireServer(
-				"SpawnBrainrot",
-				{
-					BrainrotId = id,
-					Global = globalEnabled,
-				}
-			)
-
-		end)
-
-	end
-
-end
-
---==================================================
--- PLAYERS
---==================================================
-
-local function showPlayersPage()
-
-	clearPage()
-
-	makeLabel(
-		pageHolder,
-		"GIVE BRAINROT",
-		UDim2.fromOffset(0, 0),
-		UDim2.new(1, 0, 0, 25)
-	)
-
-	local username = makeBox(
-		pageHolder,
-		"Username...",
-		UDim2.fromOffset(12, 32),
-		UDim2.new(1, -24, 0, 40)
-	)
-
-	local brainrotBox = makeBox(
-		pageHolder,
-		"Brainrot ID...",
-		UDim2.fromOffset(12, 80),
-		UDim2.new(1, -24, 0, 40)
-	)
-
-	local giveBrainrot = makeButton(
-		pageHolder,
-		"GIVE BRAINROT",
-		UDim2.fromOffset(130, 130),
-		UDim2.fromOffset(300, 42),
-		PURPLE
-	)
-
-	makeLabel(
-		pageHolder,
-		"GIVE MONEY",
-		UDim2.fromOffset(0, 185),
-		UDim2.new(1, 0, 0, 25)
-	)
-
-	local moneyUser = makeBox(
-		pageHolder,
-		"Username...",
-		UDim2.fromOffset(12, 218),
-		UDim2.fromOffset(260, 40)
-	)
-
-	local amount = makeBox(
-		pageHolder,
-		"Amount...",
-		UDim2.fromOffset(285, 218),
-		UDim2.fromOffset(260, 40)
-	)
-
-	local giveMoney = makeButton(
-		pageHolder,
-		"GIVE MONEY",
-		UDim2.fromOffset(130, 268),
-		UDim2.fromOffset(300, 42),
-		GREEN
-	)
-
-	giveBrainrot.Activated:Connect(function()
-
-		Command:FireServer(
-			"GiveBrainrot",
-			{
-				Target = username.Text,
-				BrainrotId = brainrotBox.Text,
-			}
-		)
-
-	end)
-
-	giveMoney.Activated:Connect(function()
-
-		Command:FireServer(
-			"GiveMoney",
-			{
-				Target = moneyUser.Text,
-				Amount = amount.Text,
-				Global = globalEnabled,
-			}
-		)
-
-	end)
-
-end
-
---==================================================
--- MODERATION
---==================================================
-
-local function showModeratePage()
-
-	clearPage()
-
-	makeLabel(
-		pageHolder,
-		"MODERATION",
-		UDim2.fromOffset(0, 0),
-		UDim2.new(1, 0, 0, 25)
-	)
-
-	local info = Instance.new("TextLabel")
-
-	info.BackgroundTransparency = 1
-
-	info.Position = UDim2.fromOffset(0, 45)
-	info.Size = UDim2.new(1, 0, 0, 80)
-
-	info.Text =
-		"Your existing moderation system stays separate from this panel."
-
-	info.TextColor3 = GRAY
-	info.TextSize = 13
-	info.Font = Enum.Font.Gotham
-	info.TextWrapped = true
-
-	info.ZIndex = 203
-	info.Parent = pageHolder
-
-end
-
---==================================================
--- ANNOUNCEMENT
---==================================================
-
-local function showAnnouncementPage()
-
-	clearPage()
-
-	makeLabel(
-		pageHolder,
-		"ANNOUNCEMENT",
-		UDim2.fromOffset(0, 0),
-		UDim2.new(1, 0, 0, 25)
-	)
-
-	local box = Instance.new("TextBox")
-
-	box.Position = UDim2.fromOffset(12, 32)
-	box.Size = UDim2.new(1, -24, 0, 115)
-
-	box.BackgroundColor3 = DARK2
-
-	box.Text = ""
-	box.PlaceholderText = "Type your announcement..."
-	box.PlaceholderColor3 = GRAY
-
-	box.TextColor3 = WHITE
-	box.TextSize = 16
-	box.Font = Enum.Font.GothamMedium
-
-	box.TextWrapped = true
-	box.TextXAlignment = Enum.TextXAlignment.Left
-	box.TextYAlignment = Enum.TextYAlignment.Top
-
-	box.MultiLine = true
-	box.ClearTextOnFocus = false
-
-	box.ZIndex = 204
-
-	noOutline(box)
-	corner(box, 7)
-
-	box.Parent = pageHolder
-
-	local counter = Instance.new("TextLabel")
-
-	counter.BackgroundTransparency = 1
-
-	counter.Position = UDim2.new(1, -130, 0, 150)
-	counter.Size = UDim2.fromOffset(115, 20)
-
-	counter.Text = "0 / 250"
-	counter.TextColor3 = GRAY
-	counter.TextSize = 11
-	counter.Font = Enum.Font.Gotham
-
-	counter.TextXAlignment = Enum.TextXAlignment.Right
-	counter.ZIndex = 204
-
-	counter.Parent = pageHolder
-
-	box:GetPropertyChangedSignal("Text"):Connect(function()
-
-		if #box.Text > 250 then
-
-			box.Text =
-				string.sub(
-					box.Text,
-					1,
-					250
-				)
-
-		end
-
-		counter.Text =
-			tostring(#box.Text)
-			.. " / 250"
-
-	end)
-
-	local send = makeButton(
-		pageHolder,
-		"SEND ANNOUNCEMENT",
-		UDim2.fromOffset(130, 180),
-		UDim2.fromOffset(300, 44),
-		CYAN
-	)
-
-	send.TextColor3 = Color3.fromRGB(5, 30, 28)
-
-	send.Activated:Connect(function()
-
-		if not ActionAnnouncement then
-
-			showAnnouncement(
-				"⚠ Announcement system is not connected."
-			)
-
-			return
-		end
-
-		local text = box.Text
-
-		text = string.gsub(text, "^%s+", "")
-		text = string.gsub(text, "%s+$", "")
-
-		if text == "" then
-			return
-		end
-
-		ActionAnnouncement:FireServer(
-			"Custom",
-			text
-		)
-
-		box.Text = ""
-
-	end)
-
-end
-
---==================================================
--- TABS
---==================================================
-
-local tabs = {
-	luckTab,
-	spawnTab,
-	playerTab,
-	moderateTab,
-	announcementTab,
-}
-
-local function selectTab(selected)
-
-	for _, tab in ipairs(tabs) do
-
-		tab.BackgroundColor3 = DARK2
-		tab.TextColor3 = GRAY
-
-	end
-
-	selected.BackgroundColor3 = CYAN
-	selected.TextColor3 = Color3.fromRGB(5, 30, 28)
-
-end
-
-luckTab.Activated:Connect(function()
-	selectTab(luckTab)
-	showLuckPage()
-end)
-
-spawnTab.Activated:Connect(function()
-	selectTab(spawnTab)
-	showSpawnerPage()
-end)
-
-playerTab.Activated:Connect(function()
-	selectTab(playerTab)
-	showPlayersPage()
-end)
-
-moderateTab.Activated:Connect(function()
-	selectTab(moderateTab)
-	showModeratePage()
-end)
-
-announcementTab.Activated:Connect(function()
-	selectTab(announcementTab)
-	showAnnouncementPage()
-end)
-
---==================================================
--- OPEN
---==================================================
-
-local function openPanel()
-
-	if panel.Visible then
-		return
-	end
-
-	panel.Visible = true
-	panelScale.Scale = 0.88
-
-	selectTab(luckTab)
-	showLuckPage()
-
-	tween(
-		panelScale,
-		TweenInfo.new(
-			0.2,
-			Enum.EasingStyle.Back,
-			Enum.EasingDirection.Out
-		),
-		{
-			Scale = 1
-		}
-	):Play()
-
-end
-
---==================================================
--- CLOSE
---==================================================
-
-local function closePanel()
-
-	if not panel.Visible then
-		return
-	end
-
-	local animation =
-		tween(
-			panelScale,
-			TweenInfo.new(
-				0.13,
-				Enum.EasingStyle.Quad,
-				Enum.EasingDirection.In
-			),
-			{
-				Scale = 0.88
-			}
-		)
-
-	animation:Play()
-
-	animation.Completed:Connect(function()
-
-		panel.Visible = false
-
-	end)
-
-end
-
---==================================================
--- GEAR
---==================================================
-
-openButton.Activated:Connect(function()
-
-	playClick()
-
-	if panel.Visible then
-		closePanel()
-	else
-		openPanel()
-	end
-
-end)
-
---==================================================
--- CLOSE BUTTON
---==================================================
-
-close.Activated:Connect(function()
-
-	playClick()
-	closePanel()
-
-end)
-
---==================================================
--- E KEY
---==================================================
-
-UserInputService.InputBegan:Connect(function(input, processed)
-
-	if processed then
-		return
-	end
-
-	if input.KeyCode ~= Enum.KeyCode.E then
-		return
-	end
-
-	playClick()
-
-	if panel.Visible then
-		closePanel()
-	else
-		openPanel()
-	end
-
-end)
-
---==================================================
--- SERVER UI EVENTS
---==================================================
-
-UI.OnClientEvent:Connect(function(action, data)
-
-	-- AUTHORIZED
-	if action == "Authorized" then
-		openButton.Visible = true
-		return
-	end
-
-	-- ERROR
-	if action == "Error" then
-
-		warn("[ADMIN ERROR]", data)
-
-		showAnnouncement(
-			"⚠ " .. tostring(data)
-		)
-
-		return
-	end
-
-	-- SUCCESS
-	if action == "Success" then
-
-		print("[ADMIN]", data)
-
-		showAnnouncement(
-			"✓ " .. tostring(data)
-		)
-
-		return
-	end
-
-	-- LUCK
-	if action == "Luck" then
-
-		if typeof(data) ~= "table" then
-			return
-		end
-
-		local multiplier = tonumber(data.Multiplier)
-		local duration = tonumber(data.Duration)
-
-		if not multiplier or not duration then
-			return
-		end
-
-		-- SAME MULTIPLIER = ADD TIME
-		if currentLuckMultiplier == multiplier
-			and luckHud.Visible
-			and luckEndTime > os.clock() then
-
-			luckEndTime += duration
-
-		else
-
-			-- DIFFERENT MULTIPLIER = REPLACE
-			luckEndTime =
-				os.clock() + duration
-
-		end
-
-		currentLuckMultiplier = multiplier
-
-		luckMultiplier.Text =
-			tostring(multiplier) .. "X LUCK"
-
-		updateLuckColor(multiplier)
-
-		if data.Scope == "Global" then
-			luckScope.Text = "GLOBAL"
-		else
-			luckScope.Text = "SERVER"
-		end
-
-		luckHud.Visible = true
-
-		return
-	end
-
-	-- STOP LUCK
-	if action == "StopLuck" then
-
-		luckHud.Visible = false
-		luckEndTime = 0
-		currentLuckMultiplier = nil
-
-		return
-	end
-
-	-- ANNOUNCEMENT
-	if action == "Announcement" then
-
-		if typeof(data) == "string" then
-
-			showAnnouncement(data)
-
-		elseif typeof(data) == "table" then
-
-			showAnnouncement(
-				data.Text
-					or data.Message
-					or ""
-			)
-
-		end
-
-		return
-	end
-
-end)
-
---==================================================
--- EXISTING ANNOUNCEMENT SYSTEM
---==================================================
-
-if ActionAnnouncement then
-
-	ActionAnnouncement.OnClientEvent:Connect(
-		function(action, message)
-
-			if typeof(message) == "string" then
-
-				showAnnouncement(message)
-
-			elseif typeof(action) == "string" then
-
-				showAnnouncement(action)
-
-			end
-
-		end
-	)
-
-end
-
---==================================================
--- START
---==================================================
-
-gui.Enabled = true
-openButton.Visible = true
-
-task.delay(1, function()
-
-	Command:FireServer("CheckAdmin")
-
-end)
-
-print(
-	"Fight for Brainrots Admin Client Loaded | Admin:",
-	player.Name
-)
-local ADMINS = {
-	[11607704974] = true,
-
-	-- Add more admins here:
-	-- [123456789] = true,
-}
-
-local IS_ADMIN = ADMINS[player.UserId] == true
-
-if not IS_ADMIN then
-	return
-end
-
---==================================================
--- ADMIN REMOTES
---==================================================
-
-local AdminRemotes = ReplicatedStorage:WaitForChild("AdminRemotes")
-
-local Command = AdminRemotes:WaitForChild("Command")
-local UI = AdminRemotes:WaitForChild("UI")
-
---==================================================
--- OTHER REMOTES
---==================================================
-
-local OtherRemotes = ReplicatedStorage:FindFirstChild("OtherRemotes")
-
-local ActionAnnouncement
-
-if OtherRemotes then
-	ActionAnnouncement =
-		OtherRemotes:FindFirstChild("ActionAnnouncement")
-end
-
---==================================================
--- COLORS
---==================================================
-
-local CYAN = Color3.fromRGB(0, 255, 220)
-
-local DARK = Color3.fromRGB(7, 15, 16)
-local DARK2 = Color3.fromRGB(11, 24, 25)
-local DARK3 = Color3.fromRGB(17, 35, 35)
-local DARK4 = Color3.fromRGB(23, 46, 45)
-
-local WHITE = Color3.fromRGB(245, 255, 252)
-local GRAY = Color3.fromRGB(145, 170, 165)
-
-local GREEN = Color3.fromRGB(45, 220, 90)
-local GOLD = Color3.fromRGB(255, 200, 45)
-local RED = Color3.fromRGB(235, 60, 60)
-local PURPLE = Color3.fromRGB(155, 80, 255)
-
---==================================================
--- SCREEN GUI
---==================================================
-
-local gui = Instance.new("ScreenGui")
-gui.Name = "FightForBrainrotsAdmin"
-gui.ResetOnSpawn = false
-gui.IgnoreGuiInset = true
-gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-gui.Parent = player:WaitForChild("PlayerGui")
-
---==================================================
--- SOUND
---==================================================
-
-local clickSound = Instance.new("Sound")
-clickSound.Name = "ClickSound"
-clickSound.SoundId = "rbxasset://sounds/electronicpingshort.wav"
-clickSound.Volume = 0.35
-clickSound.Parent = gui
-
-local function playClick()
-	pcall(function()
-		clickSound:Play()
-	end)
-end
-
---==================================================
--- HELPERS
---==================================================
-
-local function addCorner(object, radius)
-
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, radius or 7)
-	corner.Parent = object
-
-	return corner
-end
-
-local function addNoOutline(object)
-
-	object.BorderSizePixel = 0
-
-end
-
-local function tween(object, info, properties)
-
-	return TweenService:Create(
-		object,
-		info,
-		properties
-	)
-
-end
-
---==================================================
--- OPEN BUTTON
+-- GEAR BUTTON
 --==================================================
 
 local openButton = Instance.new("TextButton")
-
 openButton.Name = "OpenButton"
-
-openButton.AnchorPoint =
-	Vector2.new(1, 0)
-
-openButton.Position =
-	UDim2.new(1, -18, 0, 18)
-
-openButton.Size =
-	UDim2.fromOffset(44, 44)
-
-openButton.BackgroundColor3 = DARK2
-openButton.BackgroundTransparency = 0.05
-
--- Gear
+openButton.Size = UDim2.fromOffset(48, 48)
+openButton.Position = UDim2.new(1, -65, 0, 18)
+openButton.BackgroundColor3 = PANEL
 openButton.Text = "⚙"
-openButton.TextColor3 = CYAN
+openButton.TextColor3 = WHITE
 openButton.TextSize = 25
 openButton.Font = Enum.Font.GothamBold
-
-openButton.AutoButtonColor = false
-
-addNoOutline(openButton)
-addCorner(openButton, 9)
-
+openButton.BorderSizePixel = 0
+openButton.Visible = false
 openButton.Parent = gui
 
-local openGradient = Instance.new("UIGradient")
-
-openGradient.Rotation = 90
-
-openGradient.Color =
-	ColorSequence.new({
-		ColorSequenceKeypoint.new(
-			0,
-			DARK4
-		),
-
-		ColorSequenceKeypoint.new(
-			1,
-			DARK2
-		)
-	})
-
-openGradient.Parent = openButton
-
-openButton.MouseEnter:Connect(function()
-
-	tween(
-		openButton,
-		TweenInfo.new(0.12),
-		{
-			BackgroundColor3 = DARK4,
-			TextColor3 = WHITE
-		}
-	):Play()
-
-end)
-
-openButton.MouseLeave:Connect(function()
-
-	tween(
-		openButton,
-		TweenInfo.new(0.12),
-		{
-			BackgroundColor3 = DARK2,
-			TextColor3 = CYAN
-		}
-	):Play()
-
-end)
+corner(openButton, 12)
+stroke(openButton, CYAN, 1, 0.35)
 
 --==================================================
 -- MAIN PANEL
 --==================================================
 
 local panel = Instance.new("Frame")
-
 panel.Name = "MainPanel"
-
-panel.AnchorPoint =
-	Vector2.new(0.5, 0.5)
-
-panel.Position =
-	UDim2.fromScale(0.5, 0.5)
-
-panel.Size =
-	UDim2.fromOffset(560, 365)
-
-panel.BackgroundColor3 = DARK
-panel.BackgroundTransparency = 0.02
-
+panel.Size = UDim2.fromOffset(650, 440)
+panel.Position = UDim2.new(0.5, -325, 0.5, -220)
+panel.BackgroundColor3 = PANEL
+panel.BorderSizePixel = 0
 panel.Visible = false
-
-addNoOutline(panel)
-addCorner(panel, 10)
-
 panel.Parent = gui
+
+corner(panel, 14)
+stroke(panel, Color3.fromRGB(55, 63, 75), 1, 0.15)
 
 --==================================================
 -- HEADER
 --==================================================
 
 local header = Instance.new("Frame")
-
-header.Size =
-	UDim2.new(1, 0, 0, 48)
-
-header.BackgroundColor3 = CYAN
-
-addNoOutline(header)
-addCorner(header, 10)
-
+header.Size = UDim2.new(1, 0, 0, 58)
+header.BackgroundColor3 = PANEL2
+header.BorderSizePixel = 0
 header.Parent = panel
 
-local headerBottom = Instance.new("Frame")
+corner(header, 14)
 
-headerBottom.Position =
-	UDim2.new(0, 0, 1, -10)
+local headerFix = Instance.new("Frame")
+headerFix.Size = UDim2.new(1, 0, 0, 18)
+headerFix.Position = UDim2.new(0, 0, 1, -18)
+headerFix.BackgroundColor3 = PANEL2
+headerFix.BorderSizePixel = 0
+headerFix.Parent = header
 
-headerBottom.Size =
-	UDim2.new(1, 0, 0, 10)
+local title = createText(header, "ADMIN PANEL", 19, WHITE)
+title.Position = UDim2.fromOffset(18, 8)
+title.Size = UDim2.new(1, -100, 0, 25)
 
-headerBottom.BackgroundColor3 = CYAN
+local subtitle = createText(header, "SERVER MANAGEMENT", 10, GRAY)
+subtitle.Position = UDim2.fromOffset(19, 32)
+subtitle.Size = UDim2.new(1, -100, 0, 16)
 
-addNoOutline(headerBottom)
-
-headerBottom.Parent = header
-
-local title = Instance.new("TextLabel")
-
-title.BackgroundTransparency = 1
-
-title.Position =
-	UDim2.fromOffset(15, 0)
-
-title.Size =
-	UDim2.new(1, -65, 1, 0)
-
-title.Text = "ADMIN TERMINAL"
-
-title.TextColor3 =
-	Color3.fromRGB(4, 28, 27)
-
-title.TextSize = 18
-title.Font = Enum.Font.GothamBold
-
-title.TextXAlignment =
-	Enum.TextXAlignment.Left
-
-title.Parent = header
-
-local subtitle = Instance.new("TextLabel")
-
-subtitle.BackgroundTransparency = 1
-
-subtitle.Position =
-	UDim2.new(1, -205, 0, 0)
-
-subtitle.Size =
-	UDim2.fromOffset(155, 48)
-
-subtitle.Text = "FIGHT FOR BRAINROTS"
-
-subtitle.TextColor3 =
-	Color3.fromRGB(5, 55, 51)
-
-subtitle.TextSize = 8
-subtitle.Font = Enum.Font.GothamBold
-
-subtitle.TextXAlignment =
-	Enum.TextXAlignment.Right
-
-subtitle.Parent = header
+local closeButton = Instance.new("TextButton")
+closeButton.Size = UDim2.fromOffset(34, 34)
+closeButton.Position = UDim2.new(1, -45, 0, 12)
+closeButton.BackgroundTransparency = 1
+closeButton.Text = "×"
+closeButton.TextColor3 = GRAY
+closeButton.TextSize = 26
+closeButton.Font = Enum.Font.GothamBold
+closeButton.Parent = header
 
 --==================================================
--- CLOSE BUTTON
+-- TABS
 --==================================================
 
-local close = Instance.new("TextButton")
+local tabBar = Instance.new("Frame")
+tabBar.Size = UDim2.new(1, -28, 0, 40)
+tabBar.Position = UDim2.fromOffset(14, 66)
+tabBar.BackgroundTransparency = 1
+tabBar.Parent = panel
 
-close.Size =
-	UDim2.fromOffset(34, 34)
+local tabLayout = Instance.new("UIListLayout")
+tabLayout.FillDirection = Enum.FillDirection.Horizontal
+tabLayout.Padding = UDim.new(0, 5)
+tabLayout.SortOrder = Enum.SortOrder.LayoutOrder
+tabLayout.Parent = tabBar
 
-close.Position =
-	UDim2.new(1, -41, 0, 7)
+local tabs = {}
 
-close.BackgroundColor3 = DARK2
+local function createTab(name)
+	local tab = Instance.new("TextButton")
+	tab.Size = UDim2.fromOffset(99, 36)
+	tab.BackgroundColor3 = BUTTON
+	tab.Text = name
+	tab.TextColor3 = GRAY
+	tab.TextSize = 11
+	tab.Font = Enum.Font.GothamBold
+	tab.BorderSizePixel = 0
+	tab.AutoButtonColor = false
+	tab.Parent = tabBar
 
-close.Text = "×"
+	corner(tab, 7)
 
-close.TextColor3 = CYAN
-close.TextSize = 22
-close.Font = Enum.Font.GothamBold
+	table.insert(tabs, tab)
 
-close.AutoButtonColor = false
+	return tab
+end
 
-addNoOutline(close)
-addCorner(close, 7)
-
-close.Parent = header
+local luckTab = createTab("LUCK")
+local spawnerTab = createTab("SPAWNER")
+local playersTab = createTab("PLAYERS")
+local moderateTab = createTab("MODERATE")
+local pollsTab = createTab("POLLS")
+local announceTab = createTab("ANNOUNCE")
 
 --==================================================
 -- CONTENT
 --==================================================
 
 local content = Instance.new("Frame")
-
-content.Position =
-	UDim2.fromOffset(10, 58)
-
-content.Size =
-	UDim2.new(1, -20, 1, -68)
-
+content.Size = UDim2.new(1, -28, 1, -120)
+content.Position = UDim2.fromOffset(14, 112)
 content.BackgroundTransparency = 1
-
 content.Parent = panel
 
---==================================================
--- TABS
---==================================================
-
-local tabHolder = Instance.new("Frame")
-
-tabHolder.Size =
-	UDim2.new(1, 0, 0, 42)
-
-tabHolder.BackgroundTransparency = 1
-
-tabHolder.Parent = content
-
-local tabLayout = Instance.new("UIListLayout")
-
-tabLayout.FillDirection =
-	Enum.FillDirection.Horizontal
-
-tabLayout.Padding =
-	UDim.new(0, 5)
-
-tabLayout.HorizontalAlignment =
-	Enum.HorizontalAlignment.Center
-
-tabLayout.VerticalAlignment =
-	Enum.VerticalAlignment.Center
-
-tabLayout.Parent = tabHolder
-
-local function makeTab(text)
-
-	local button = Instance.new("TextButton")
-
-	button.Size =
-		UDim2.fromOffset(98, 38)
-
-	button.BackgroundColor3 = DARK2
-
-	button.Text = text
-
-	button.TextColor3 = GRAY
-	button.TextSize = 10
-	button.Font = Enum.Font.GothamBold
-
-	button.AutoButtonColor = false
-
-	addNoOutline(button)
-	addCorner(button, 6)
-
-	button.Parent = tabHolder
-
-	return button
-end
-
-local luckTab =
-	makeTab("LUCK")
-
-local spawnTab =
-	makeTab("SPAWNER")
-
-local playerTab =
-	makeTab("PLAYERS")
-
-local moderateTab =
-	makeTab("MODERATE")
-
-local announcementTab =
-	makeTab("ANNOUNCE")
-
---==================================================
--- PAGE HOLDER
---==================================================
-
-local pageHolder = Instance.new("Frame")
-
-pageHolder.Position =
-	UDim2.fromOffset(0, 48)
-
-pageHolder.Size =
-	UDim2.new(1, 0, 1, -48)
-
-pageHolder.BackgroundTransparency = 1
-
-pageHolder.Parent = content
+local currentPage
 
 local function clearPage()
-
-	for _, child in ipairs(
-		pageHolder:GetChildren()
-	) do
-
-		child:Destroy()
-
+	if currentPage then
+		currentPage:Destroy()
 	end
 
+	currentPage = Instance.new("Frame")
+	currentPage.Size = UDim2.fromScale(1, 1)
+	currentPage.BackgroundTransparency = 1
+	currentPage.Parent = content
 end
 
 --==================================================
--- UI HELPERS
+-- CLOVER ICON
+-- NO EMOJI
+-- NO BLACK OUTLINE
 --==================================================
 
-local function makeLabel(
-	parent,
-	text,
-	position,
-	size
-)
-
-	local label = Instance.new("TextLabel")
-
-	label.BackgroundTransparency = 1
-
-	label.Position = position
-	label.Size = size
-
-	label.Text = text
-
-	label.TextColor3 = CYAN
-	label.TextSize = 14
-	label.Font = Enum.Font.GothamBold
-
-	label.TextXAlignment =
-		Enum.TextXAlignment.Left
-
-	label.Parent = parent
-
-	return label
-end
-
-local function makeButton(
-	parent,
-	text,
-	position,
-	size,
-	color
-)
-
-	local button = Instance.new("TextButton")
-
-	button.Position = position
-	button.Size = size
-
-	button.BackgroundColor3 =
-		color or DARK3
-
-	button.Text = text
-
-	button.TextColor3 = WHITE
-	button.TextSize = 13
-	button.Font = Enum.Font.GothamBold
-
-	button.AutoButtonColor = false
-
-	addNoOutline(button)
-	addCorner(button, 7)
-
-	button.Parent = parent
-
-	button.MouseEnter:Connect(function()
-
-		tween(
-			button,
-			TweenInfo.new(0.1),
-			{
-				BackgroundColor3 =
-					(color or DARK3):Lerp(
-						Color3.new(1, 1, 1),
-						0.07
-					)
-			}
-		):Play()
-
-	end)
-
-	button.MouseLeave:Connect(function()
-
-		tween(
-			button,
-			TweenInfo.new(0.1),
-			{
-				BackgroundColor3 =
-					color or DARK3
-			}
-		):Play()
-
-	end)
-
-	button.MouseButton1Click:Connect(
-		function()
-			playClick()
-		end
-	)
-
-	return button
-end
-
-local function makeBox(
-	parent,
-	placeholder,
-	position,
-	size
-)
-
-	local box = Instance.new("TextBox")
-
-	box.Position = position
-	box.Size = size
-
-	box.BackgroundColor3 = DARK2
-
-	box.Text = ""
-
-	box.PlaceholderText =
-		placeholder
-
-	box.PlaceholderColor3 =
-		GRAY
-
-	box.TextColor3 = WHITE
-	box.TextSize = 13
-	box.Font = Enum.Font.Gotham
-
-	box.ClearTextOnFocus = false
-
-	addNoOutline(box)
-	addCorner(box, 6)
-
-	box.Parent = parent
-
-	return box
-end
-
---==================================================
--- GLOBAL
---==================================================
-
-local globalEnabled = false
-
---==================================================
--- LUCK HUD
---==================================================
-
-local luckHud = Instance.new("Frame")
-
-luckHud.Name = "LuckHUD"
-
-luckHud.AnchorPoint =
-	Vector2.new(1, 1)
-
-luckHud.Position =
-	UDim2.new(1, -16, 1, -16)
-
-luckHud.Size =
-	UDim2.fromOffset(180, 66)
-
-luckHud.BackgroundColor3 = DARK
-luckHud.BackgroundTransparency = 0.02
-
-luckHud.Visible = false
-
-addNoOutline(luckHud)
-addCorner(luckHud, 9)
-
-luckHud.Parent = gui
-
---==================================================
--- CLOVER
---==================================================
-
-local cloverHolder = Instance.new("Frame")
-
-cloverHolder.Name = "Clover"
-
-cloverHolder.BackgroundTransparency = 1
-
-cloverHolder.Position =
-	UDim2.fromOffset(8, 9)
-
-cloverHolder.Size =
-	UDim2.fromOffset(45, 45)
-
-cloverHolder.Parent = luckHud
-
--- No UIStroke is used anywhere on the clover.
-
-local cloverLeaves = {}
-
-local function makeLeaf(
-	position,
-	size
-)
-
-	local leaf = Instance.new("Frame")
-
-	leaf.Position = position
-	leaf.Size = size
-
-	leaf.BackgroundColor3 = GREEN
-
-	-- Completely remove outline
-	leaf.BorderSizePixel = 0
-
-	addCorner(
-		leaf,
-		math.floor(
-			math.min(
-				size.X.Offset,
-				size.Y.Offset
-			) / 2
-		)
-	)
-
-	leaf.Parent = cloverHolder
-
-	table.insert(
-		cloverLeaves,
-		leaf
-	)
-
-	return leaf
-end
-
--- Four large round leaves
-makeLeaf(
-	UDim2.fromOffset(10, 0),
-	UDim2.fromOffset(22, 22)
-)
-
-makeLeaf(
-	UDim2.fromOffset(23, 10),
-	UDim2.fromOffset(22, 22)
-)
-
-makeLeaf(
-	UDim2.fromOffset(10, 23),
-	UDim2.fromOffset(22, 22)
-)
-
-makeLeaf(
-	UDim2.fromOffset(-3, 10),
-	UDim2.fromOffset(22, 22)
-)
-
--- Small center
-local cloverCenter = Instance.new("Frame")
-
-cloverCenter.Position =
-	UDim2.fromOffset(14, 14)
-
-cloverCenter.Size =
-	UDim2.fromOffset(16, 16)
-
-cloverCenter.BackgroundColor3 =
-	GREEN
-
-cloverCenter.BorderSizePixel = 0
-
-addCorner(
-	cloverCenter,
-	8
-)
-
-cloverCenter.Parent =
-	cloverHolder
-
-table.insert(
-	cloverLeaves,
-	cloverCenter
-)
-
--- Small stem
-local stem = Instance.new("Frame")
-
-stem.Position =
-	UDim2.fromOffset(18, 32)
-
-stem.Size =
-	UDim2.fromOffset(6, 13)
-
-stem.BackgroundColor3 =
-	GREEN
-
-stem.BorderSizePixel = 0
-
-stem.Rotation = -15
-
-addCorner(
-	stem,
-	3
-)
-
-stem.Parent =
-	cloverHolder
-
-table.insert(
-	cloverLeaves,
-	stem
-)
-
---==================================================
--- LUCK TEXT
---==================================================
-
-local luckMultiplier = Instance.new("TextLabel")
-
-luckMultiplier.BackgroundTransparency = 1
-
-luckMultiplier.Position =
-	UDim2.fromOffset(62, 7)
-
-luckMultiplier.Size =
-	UDim2.new(1, -68, 0, 24)
-
-luckMultiplier.Text = "2X LUCK"
-
-luckMultiplier.TextColor3 = WHITE
-luckMultiplier.TextSize = 17
-luckMultiplier.Font = Enum.Font.GothamBold
-
-luckMultiplier.TextXAlignment =
-	Enum.TextXAlignment.Left
-
-luckMultiplier.Parent = luckHud
-
-local luckScope = Instance.new("TextLabel")
-
-luckScope.BackgroundTransparency = 1
-
-luckScope.Position =
-	UDim2.fromOffset(62, 29)
-
-luckScope.Size =
-	UDim2.new(1, -68, 0, 15)
-
-luckScope.Text = "SERVER"
-
-luckScope.TextColor3 = CYAN
-luckScope.TextSize = 9
-luckScope.Font = Enum.Font.GothamBold
-
-luckScope.TextXAlignment =
-	Enum.TextXAlignment.Left
-
-luckScope.Parent = luckHud
-
-local luckTimer = Instance.new("TextLabel")
-
-luckTimer.BackgroundTransparency = 1
-
-luckTimer.Position =
-	UDim2.fromOffset(62, 45)
-
-luckTimer.Size =
-	UDim2.new(1, -68, 0, 15)
-
-luckTimer.Text = "15:00"
-
-luckTimer.TextColor3 = GRAY
-luckTimer.TextSize = 11
-luckTimer.Font = Enum.Font.Gotham
-
-luckTimer.TextXAlignment =
-	Enum.TextXAlignment.Left
-
-luckTimer.Parent = luckHud
-
---==================================================
--- LUCK STATE
---==================================================
-
-local luckEndTime = 0
-local currentLuckMultiplier = nil
-
-local function setCloverColor(color)
-
-	for _, part in ipairs(
-		cloverLeaves
-	) do
-
-		part.BackgroundColor3 =
-			color
-
+local function createClover(parent, color, size)
+	local holder = Instance.new("Frame")
+	holder.Size = UDim2.fromOffset(size, size)
+	holder.BackgroundTransparency = 1
+	holder.Parent = parent
+
+	local function circle(x, y)
+		local c = Instance.new("Frame")
+		c.Size = UDim2.fromOffset(size * 0.43, size * 0.43)
+		c.Position = UDim2.new(x, 0, y, 0)
+		c.BackgroundColor3 = color
+		c.BorderSizePixel = 0
+		c.Parent = holder
+
+		local co = Instance.new("UICorner")
+		co.CornerRadius = UDim.new(1, 0)
+		co.Parent = c
+
+		return c
 	end
 
-end
-
-local function updateLuckColor(
-	multiplier
-)
-
-	if multiplier == 2 then
-
-		setCloverColor(GREEN)
-
-	elseif multiplier == 4 then
-
-		setCloverColor(GOLD)
-
-	elseif multiplier == 8 then
-
-		setCloverColor(RED)
-
-	end
-
-end
-
---==================================================
--- LUCK TIMER
---==================================================
-
-task.spawn(function()
-
-	while true do
-
-		task.wait(0.25)
-
-		if luckHud.Visible then
-
-			local remaining =
-				math.max(
-					0,
-					luckEndTime -
-						os.clock()
-				)
-
-			local minutes =
-				math.floor(
-					remaining / 60
-				)
-
-			local seconds =
-				math.floor(
-					remaining % 60
-				)
-
-			luckTimer.Text =
-				string.format(
-					"%02d:%02d",
-					minutes,
-					seconds
-				)
-
-			if remaining <= 0 then
-
-				luckHud.Visible =
-					false
-
-				currentLuckMultiplier =
-					nil
-
-				luckEndTime = 0
-
-			end
-
-		end
-
-	end
-
-end)
-
---==================================================
--- ANNOUNCEMENT
---==================================================
-
-local announcementFrame =
-	Instance.new("Frame")
-
-announcementFrame.Name =
-	"Announcement"
-
-announcementFrame.AnchorPoint =
-	Vector2.new(0.5, 0)
-
-announcementFrame.Position =
-	UDim2.new(
-		0.5,
-		0,
-		0,
-		-80
-	)
-
-announcementFrame.Size =
-	UDim2.fromOffset(470, 54)
-
-announcementFrame.BackgroundColor3 =
-	DARK
-
-announcementFrame.BackgroundTransparency =
-	0.03
-
-announcementFrame.Visible =
-	false
-
--- NO OUTLINE
-addNoOutline(
-	announcementFrame
-)
-
-addCorner(
-	announcementFrame,
-	8
-)
-
-announcementFrame.Parent =
-	gui
-
-local announcementAccent =
-	Instance.new("Frame")
-
-announcementAccent.Position =
-	UDim2.fromOffset(0, 0)
-
-announcementAccent.Size =
-	UDim2.fromOffset(4, 54)
-
-announcementAccent.BackgroundColor3 =
-	CYAN
-
-addNoOutline(
-	announcementAccent
-)
-
-addCorner(
-	announcementAccent,
-	4
-)
-
-announcementAccent.Parent =
-	announcementFrame
-
-local announcementText =
-	Instance.new("TextLabel")
-
-announcementText.BackgroundTransparency =
-	1
-
-announcementText.Position =
-	UDim2.fromOffset(15, 5)
-
-announcementText.Size =
-	UDim2.new(
-		1,
-		-25,
-		1,
-		-10
-	)
-
-announcementText.Text = ""
-
-announcementText.TextColor3 =
-	WHITE
-
-announcementText.TextSize = 15
-announcementText.Font =
-	Enum.Font.GothamBold
-
-announcementText.TextWrapped = true
-
-announcementText.Parent =
-	announcementFrame
-
-local announcementNumber = 0
-
-local function showAnnouncement(
-	text
-)
-
-	if typeof(text) ~= "string"
-		or text == "" then
-
-		return
-
-	end
-
-	announcementNumber += 1
-
-	local current =
-		announcementNumber
-
-	announcementText.Text =
-		text
-
-	announcementFrame.Visible =
-		true
-
-	announcementFrame.Position =
-		UDim2.new(
-			0.5,
-			0,
-			0,
-			-80
-		)
-
-	tween(
-		announcementFrame,
-		TweenInfo.new(
-			0.2,
-			Enum.EasingStyle.Quad,
-			Enum.EasingDirection.Out
-		),
-		{
-			Position =
-				UDim2.new(
-					0.5,
-					0,
-					0,
-					14
-				)
-		}
-	):Play()
-
-	task.delay(
-		4,
-		function()
-
-			if current ~=
-				announcementNumber then
-
-				return
-
-			end
-
-			local animation =
-				tween(
-					announcementFrame,
-					TweenInfo.new(
-						0.2,
-						Enum.EasingStyle.Quad,
-						Enum.EasingDirection.In
-					),
-					{
-						Position =
-							UDim2.new(
-								0.5,
-								0,
-								0,
-								-80
-							)
-					}
-				)
-
-			animation:Play()
-
-			animation.Completed:Wait()
-
-			if current ==
-				announcementNumber then
-
-				announcementFrame.Visible =
-					false
-
-			end
-
-		end
-	)
-
+	-- Four circles making a clover.
+	circle(0.03, 0.03)
+	circle(0.54, 0.03)
+	circle(0.03, 0.54)
+	circle(0.54, 0.54)
+
+	-- Small center connection.
+	local center = Instance.new("Frame")
+	center.Size = UDim2.fromOffset(size * 0.22, size * 0.22)
+	center.Position = UDim2.new(0.39, 0, 0.39, 0)
+	center.BackgroundColor3 = color
+	center.BorderSizePixel = 0
+	center.Parent = holder
+
+	local centerCorner = Instance.new("UICorner")
+	centerCorner.CornerRadius = UDim.new(1, 0)
+	centerCorner.Parent = center
+
+	-- Small stem.
+	local stem = Instance.new("Frame")
+	stem.Size = UDim2.fromOffset(size * 0.13, size * 0.27)
+	stem.Position = UDim2.new(0.44, 0, 0.70, 0)
+	stem.Rotation = 20
+	stem.BackgroundColor3 = color
+	stem.BorderSizePixel = 0
+	stem.Parent = holder
+
+	corner(stem, 4)
+
+	return holder
 end
 
 --==================================================
 -- LUCK PAGE
 --==================================================
 
-local function showLuckPage()
+local selectedScope = "Server"
+local selectedLuck = nil
 
+local function showLuckPage()
 	clearPage()
 
-	makeLabel(
-		pageHolder,
-		"SERVER LUCK",
-		UDim2.fromOffset(0, 0),
-		UDim2.new(1, 0, 0, 25)
+	local page = currentPage
+
+	local heading = createText(page, "SERVER LUCK", 18, WHITE)
+	heading.Position = UDim2.fromOffset(4, 2)
+	heading.Size = UDim2.new(1, 0, 0, 25)
+
+	local desc = createText(
+		page,
+		"Increase the chance of better Brainrots spawning.",
+		11,
+		GRAY
 	)
+	desc.Position = UDim2.fromOffset(4, 27)
+	desc.Size = UDim2.new(1, 0, 0, 20)
 
-	local info =
-		Instance.new("TextLabel")
+	-- Scope
+	local scopeLabel = createText(page, "SCOPE", 11, GRAY)
+	scopeLabel.Position = UDim2.fromOffset(4, 55)
+	scopeLabel.Size = UDim2.fromOffset(100, 20)
 
-	info.BackgroundTransparency = 1
+	local serverButton = makeButton(page, "SERVER")
+	serverButton.Size = UDim2.fromOffset(105, 34)
+	serverButton.Position = UDim2.fromOffset(4, 79)
 
-	info.Position =
-		UDim2.fromOffset(0, 24)
+	local globalButton = makeButton(page, "GLOBAL")
+	globalButton.Size = UDim2.fromOffset(105, 34)
+	globalButton.Position = UDim2.fromOffset(115, 79)
 
-	info.Size =
-		UDim2.new(1, 0, 0, 22)
+	local function updateScope()
+		if selectedScope == "Server" then
+			serverButton.BackgroundColor3 = CYAN
+			serverButton.TextColor3 = Color3.fromRGB(5, 10, 14)
 
-	info.Text =
-		"Choose a multiplier • same multiplier adds time"
-
-	info.TextColor3 = GRAY
-	info.TextSize = 11
-	info.Font = Enum.Font.Gotham
-
-	info.TextXAlignment =
-		Enum.TextXAlignment.Left
-
-	info.Parent = pageHolder
-
-	--==================================================
-	-- 2X
-	--==================================================
-
-	local luck2 =
-		makeButton(
-			pageHolder,
-			"🍀   2X",
-			UDim2.fromOffset(
-				12,
-				57
-			),
-			UDim2.fromOffset(
-				165,
-				55
-			),
-			Color3.fromRGB(
-				25,
-				125,
-				65
-			)
-		)
-
-	luck2.TextColor3 =
-		GREEN
-
-	--==================================================
-	-- 4X
-	--==================================================
-
-	local luck4 =
-		makeButton(
-			pageHolder,
-			"🍀   4X",
-			UDim2.fromOffset(
-				190,
-				57
-			),
-			UDim2.fromOffset(
-				165,
-				55
-			),
-			Color3.fromRGB(
-				175,
-				130,
-				20
-			)
-		)
-
-	luck4.TextColor3 =
-		GOLD
-
-	--==================================================
-	-- 8X
-	--==================================================
-
-	local luck8 =
-		makeButton(
-			pageHolder,
-			"🍀   8X",
-			UDim2.fromOffset(
-				368,
-				57
-			),
-			UDim2.fromOffset(
-				165,
-				55
-			),
-			Color3.fromRGB(
-				170,
-				35,
-				35
-			)
-		)
-
-	luck8.TextColor3 =
-		RED
-
-	--==================================================
-	-- GLOBAL
-	--==================================================
-
-	local globalButton =
-		makeButton(
-			pageHolder,
-			"",
-			UDim2.fromOffset(
-				105,
-				125
-			),
-			UDim2.fromOffset(
-				350,
-				46
-			),
-			DARK3
-		)
-
-	local function updateGlobalButton()
-
-		if globalEnabled then
-
-			globalButton.Text =
-				"GLOBAL: ON"
-
-			globalButton.TextColor3 =
-				WHITE
-
-			globalButton.BackgroundColor3 =
-				Color3.fromRGB(
-					25,
-					150,
-					65
-				)
-
+			globalButton.BackgroundColor3 = BUTTON
+			globalButton.TextColor3 = WHITE
 		else
+			globalButton.BackgroundColor3 = CYAN
+			globalButton.TextColor3 = Color3.fromRGB(5, 10, 14)
 
-			globalButton.Text =
-				"GLOBAL: OFF  •  SERVER ONLY"
-
-			globalButton.TextColor3 =
-				WHITE
-
-			globalButton.BackgroundColor3 =
-				Color3.fromRGB(
-					35,
-					80,
-					60
-				)
-
+			serverButton.BackgroundColor3 = BUTTON
+			serverButton.TextColor3 = WHITE
 		end
-
 	end
 
-	updateGlobalButton()
+	serverButton.MouseButton1Click:Connect(function()
+		selectedScope = "Server"
+		updateScope()
+	end)
 
-	globalButton.MouseButton1Click:Connect(
-		function()
+	globalButton.MouseButton1Click:Connect(function()
+		selectedScope = "Global"
+		updateScope()
+	end)
 
-			globalEnabled =
-				not globalEnabled
+	updateScope()
 
-			updateGlobalButton()
+	-- Luck cards
+	local cards = {
+		{
+			multiplier = 2,
+			duration = 15 * 60,
+			color = GREEN,
+			name = "2X LUCK",
+			desc = "15 MINUTES"
+		},
+		{
+			multiplier = 4,
+			duration = 10 * 60,
+			color = GOLD,
+			name = "4X LUCK",
+			desc = "10 MINUTES"
+		},
+		{
+			multiplier = 8,
+			duration = 5 * 60,
+			color = RED,
+			name = "8X LUCK",
+			desc = "5 MINUTES"
+		}
+	}
 
-		end
-	)
+	for i, info in ipairs(cards) do
+		local card = Instance.new("TextButton")
+		card.Size = UDim2.fromOffset(190, 145)
+		card.Position = UDim2.fromOffset(4 + ((i - 1) * 202), 130)
+		card.BackgroundColor3 = PANEL2
+		card.BorderSizePixel = 0
+		card.Text = ""
+		card.AutoButtonColor = false
+		card.Parent = page
 
-	--==================================================
-	-- STOP ALL
-	--==================================================
+		corner(card, 12)
+		stroke(card, info.color, 1, 0.45)
 
-	local stop =
-		makeButton(
-			pageHolder,
-			"STOP ALL LUCK",
-			UDim2.fromOffset(
-				105,
-				182
-			),
-			UDim2.fromOffset(
-				350,
-				46
-			),
-			RED
-		)
+		local icon = createClover(card, info.color, 50)
+		icon.Position = UDim2.fromOffset(70, 15)
 
-	--==================================================
-	-- ACTIVATE
-	--==================================================
+		local multiplier = createText(card, info.name, 15, WHITE)
+		multiplier.TextXAlignment = Enum.TextXAlignment.Center
+		multiplier.Position = UDim2.fromOffset(5, 72)
+		multiplier.Size = UDim2.new(1, -10, 0, 23)
 
-	local function activate(
-		multiplier
-	)
+		local duration = createText(card, info.desc, 10, GRAY)
+		duration.TextXAlignment = Enum.TextXAlignment.Center
+		duration.Position = UDim2.fromOffset(5, 96)
+		duration.Size = UDim2.new(1, -10, 0, 18)
 
-		Command:FireServer(
-			"ServerLuck",
-			{
-				Multiplier = multiplier,
-				Global = globalEnabled
-			}
-		)
+		card.MouseEnter:Connect(function()
+			TweenService:Create(
+				card,
+				TweenInfo.new(0.12),
+				{BackgroundColor3 = BUTTON_HOVER}
+			):Play()
+		end)
 
-	end
+		card.MouseLeave:Connect(function()
+			TweenService:Create(
+				card,
+				TweenInfo.new(0.12),
+				{BackgroundColor3 = PANEL2}
+			):Play()
+		end)
 
-	luck2.MouseButton1Click:Connect(
-		function()
-			activate(2)
-		end
-	)
-
-	luck4.MouseButton1Click:Connect(
-		function()
-			activate(4)
-		end
-	)
-
-	luck8.MouseButton1Click:Connect(
-		function()
-			activate(8)
-		end
-	)
-
-	stop.MouseButton1Click:Connect(
-		function()
+		card.MouseButton1Click:Connect(function()
+			selectedLuck = info.multiplier
 
 			Command:FireServer(
-				"StopLuck",
-				{
-					Global = globalEnabled
-				}
+				"ServerLuck",
+				info.multiplier,
+				info.duration,
+				selectedScope
 			)
-
-		end
-	)
-
+		end)
+	end
 end
-
---==================================================
--- BRAINROTS
---==================================================
-
-local brainrots = {
-
-	"TungTungSahur",
-	"TralaleroTralala",
-	"BombardiroCrocodilo",
-	"CappuccinoAssassino",
-	"LiriliLarila",
-	"BallerinaCappuccina",
-	"StudzillaRex",
-	"NeonNugget",
-	"VoltViper",
-	"PrismPouncer",
-	"MagmaMuffin",
-	"Chromaclaw",
-	"TurboToast",
-	"GlitterGolem",
-	"BoomblockBarry",
-	"CascadeCrab",
-
-}
 
 --==================================================
 -- SPAWNER PAGE
 --==================================================
 
-local function showSpawnerPage()
+local brainrots = {
+	"TungTungSahur",
+	"TralaleroTralala",
+	"BombardiroCrocodilo",
+	"CappuccinoAssassino",
+	"LiriliLarila",
+	"BallerinaCappuccina",
+	"StudzillaRex",
+	"NeonNugget",
+	"VoltViper",
+	"PrismPouncer",
+	"MagmaMuffin",
+	"Chromaclaw",
+	"TurboToast",
+	"GlitterGolem",
+	"BoomblockBarry",
+	"CascadeCrab"
+}
 
+local function showSpawnerPage()
 	clearPage()
 
-	makeLabel(
-		pageHolder,
-		"SPAWNER",
-		UDim2.fromOffset(0, 0),
-		UDim2.new(1, 0, 0, 25)
-	)
+	local page = currentPage
 
-	local scroll =
-		Instance.new("ScrollingFrame")
+	local heading = createText(page, "SPAWN BRAINROTS", 18, WHITE)
+	heading.Position = UDim2.fromOffset(4, 2)
+	heading.Size = UDim2.new(1, 0, 0, 25)
 
-	scroll.Position =
-		UDim2.fromOffset(
-			8,
-			32
-		)
+	local scope = "Server"
 
-	scroll.Size =
-		UDim2.new(
-			1,
-			-16,
-			1,
-			-32
-		)
+	local serverButton = makeButton(page, "SERVER")
+	serverButton.Size = UDim2.fromOffset(100, 32)
+	serverButton.Position = UDim2.fromOffset(4, 38)
 
-	scroll.BackgroundColor3 =
-		DARK2
+	local globalButton = makeButton(page, "GLOBAL")
+	globalButton.Size = UDim2.fromOffset(100, 32)
+	globalButton.Position = UDim2.fromOffset(110, 38)
 
-	scroll.BackgroundTransparency =
-		0.05
+	local function update()
+		if scope == "Server" then
+			serverButton.BackgroundColor3 = CYAN
+			serverButton.TextColor3 = Color3.fromRGB(5, 10, 14)
 
-	scroll.BorderSizePixel = 0
+			globalButton.BackgroundColor3 = BUTTON
+			globalButton.TextColor3 = WHITE
+		else
+			globalButton.BackgroundColor3 = CYAN
+			globalButton.TextColor3 = Color3.fromRGB(5, 10, 14)
 
-	scroll.ScrollBarThickness = 3
-
-	scroll.ScrollBarImageColor3 =
-		CYAN
-
-	scroll.CanvasSize =
-		UDim2.new(
-			0,
-			0,
-			0,
-			#brainrots * 38
-		)
-
-	scroll.Parent =
-		pageHolder
-
-	addCorner(
-		scroll,
-		6
-	)
-
-	local layout =
-		Instance.new("UIListLayout")
-
-	layout.Padding =
-		UDim.new(
-			0,
-			4
-		)
-
-	layout.Parent =
-		scroll
-
-	for _, id in ipairs(
-		brainrots
-	) do
-
-		local button =
-			makeButton(
-				scroll,
-				id,
-				UDim2.new(),
-				UDim2.new(
-					1,
-					-8,
-					0,
-					34
-				),
-				DARK3
-			)
-
-		button.MouseButton1Click:Connect(
-			function()
-
-				Command:FireServer(
-					"SpawnBrainrot",
-					{
-						BrainrotId = id,
-						Global =
-							globalEnabled
-					}
-				)
-
-			end
-		)
-
+			serverButton.BackgroundColor3 = BUTTON
+			serverButton.TextColor3 = WHITE
+		end
 	end
 
+	serverButton.MouseButton1Click:Connect(function()
+		scope = "Server"
+		update()
+	end)
+
+	globalButton.MouseButton1Click:Connect(function()
+		scope = "Global"
+		update()
+	end)
+
+	update()
+
+	local scroll = Instance.new("ScrollingFrame")
+	scroll.Size = UDim2.new(1, -8, 1, -82)
+	scroll.Position = UDim2.fromOffset(4, 78)
+	scroll.BackgroundTransparency = 1
+	scroll.BorderSizePixel = 0
+	scroll.ScrollBarThickness = 4
+	scroll.CanvasSize = UDim2.new()
+	scroll.Parent = page
+
+	local layout = Instance.new("UIGridLayout")
+	layout.CellSize = UDim2.fromOffset(145, 42)
+	layout.CellPadding = UDim2.fromOffset(8, 8)
+	layout.Parent = scroll
+
+	for _, brainrotId in ipairs(brainrots) do
+		local button = makeButton(scroll, brainrotId)
+
+		button.MouseButton1Click:Connect(function()
+			Command:FireServer(
+				"SpawnBrainrot",
+				brainrotId,
+				scope
+			)
+		end)
+	end
+
+	layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+		scroll.CanvasSize = UDim2.fromOffset(
+			0,
+			layout.AbsoluteContentSize.Y + 10
+		)
+	end)
 end
 
 --==================================================
--- PLAYERS PAGE
+-- PLAYERS / GIVE BRAINROT + MONEY
 --==================================================
 
 local function showPlayersPage()
-
 	clearPage()
 
-	makeLabel(
-		pageHolder,
-		"GIVE BRAINROT",
-		UDim2.fromOffset(0, 0),
-		UDim2.new(1, 0, 0, 25)
-	)
+	local page = currentPage
 
-	local username =
-		makeBox(
-			pageHolder,
-			"Username...",
-			UDim2.fromOffset(
-				12,
-				32
-			),
-			UDim2.new(
-				1,
-				-24,
-				0,
-				40
-			)
-		)
+	local heading = createText(page, "PLAYERS", 18, WHITE)
+	heading.Position = UDim2.fromOffset(4, 2)
+	heading.Size = UDim2.new(1, 0, 0, 25)
 
-	local brainrotBox =
-		makeBox(
-			pageHolder,
-			"Brainrot ID...",
-			UDim2.fromOffset(
-				12,
-				80
-			),
-			UDim2.new(
-				1,
-				-24,
-				0,
-				40
-			)
-		)
+	-- Give Brainrot
+	local brainrotTitle = createText(page, "GIVE BRAINROT", 12, GRAY)
+	brainrotTitle.Position = UDim2.fromOffset(4, 40)
+	brainrotTitle.Size = UDim2.fromOffset(200, 20)
 
-	local giveBrainrot =
-		makeButton(
-			pageHolder,
-			"GIVE BRAINROT",
-			UDim2.fromOffset(
-				130,
-				130
-			),
-			UDim2.fromOffset(
-				300,
-				42
-			),
-			PURPLE
-		)
+	local username = makeTextBox(page, "Username")
+	username.Size = UDim2.fromOffset(250, 38)
+	username.Position = UDim2.fromOffset(4, 65)
 
-	makeLabel(
-		pageHolder,
-		"GIVE MONEY",
-		UDim2.fromOffset(
-			0,
-			185
-		),
-		UDim2.new(
-			1,
-			0,
-			0,
-			25
-		)
-	)
+	local brainrotBox = makeTextBox(page, "Brainrot ID")
+	brainrotBox.Size = UDim2.fromOffset(250, 38)
+	brainrotBox.Position = UDim2.fromOffset(4, 110)
 
-	local moneyUser =
-		makeBox(
-			pageHolder,
-			"Username...",
-			UDim2.fromOffset(
-				12,
-				218
-			),
-			UDim2.fromOffset(
-				260,
-				40
-			)
-		)
+	local giveBrainrot = makeButton(page, "GIVE BRAINROT")
+	giveBrainrot.Size = UDim2.fromOffset(160, 38)
+	giveBrainrot.Position = UDim2.fromOffset(4, 155)
 
-	local amount =
-		makeBox(
-			pageHolder,
-			"Amount...",
-			UDim2.fromOffset(
-				285,
-				218
-			),
-			UDim2.fromOffset(
-				260,
-				40
-			)
-		)
-
-	local giveMoney =
-		makeButton(
-			pageHolder,
-			"GIVE MONEY",
-			UDim2.fromOffset(
-				130,
-				268
-			),
-			UDim2.fromOffset(
-				300,
-				42
-			),
-			GREEN
-		)
-
-	giveBrainrot.MouseButton1Click:Connect(
-		function()
-
-			Command:FireServer(
-				"GiveBrainrot",
-				{
-					Target =
-						username.Text,
-
-					BrainrotId =
-						brainrotBox.Text
-				}
-			)
-
+	giveBrainrot.MouseButton1Click:Connect(function()
+		if username.Text == "" or brainrotBox.Text == "" then
+			return
 		end
-	)
 
-	giveMoney.MouseButton1Click:Connect(
-		function()
+		Command:FireServer(
+			"GiveBrainrot",
+			username.Text,
+			brainrotBox.Text
+		)
+	end)
 
-			Command:FireServer(
-				"GiveMoney",
-				{
-					Target =
-						moneyUser.Text,
+	-- Give Money
+	local moneyTitle = createText(page, "GIVE MONEY", 12, GRAY)
+	moneyTitle.Position = UDim2.fromOffset(320, 40)
+	moneyTitle.Size = UDim2.fromOffset(200, 20)
 
-					Amount =
-						amount.Text,
+	local moneyUser = makeTextBox(page, "Username")
+	moneyUser.Size = UDim2.fromOffset(250, 38)
+	moneyUser.Position = UDim2.fromOffset(320, 65)
 
-					Global =
-						globalEnabled
-				}
-			)
+	local moneyAmount = makeTextBox(page, "Amount")
+	moneyAmount.Size = UDim2.fromOffset(250, 38)
+	moneyAmount.Position = UDim2.fromOffset(320, 110)
 
+	local moneyScope = "Server"
+
+	local moneyServer = makeButton(page, "SERVER")
+	moneyServer.Size = UDim2.fromOffset(120, 34)
+	moneyServer.Position = UDim2.fromOffset(320, 155)
+
+	local moneyGlobal = makeButton(page, "GLOBAL")
+	moneyGlobal.Size = UDim2.fromOffset(120, 34)
+	moneyGlobal.Position = UDim2.fromOffset(446, 155)
+
+	local function updateMoneyScope()
+		if moneyScope == "Server" then
+			moneyServer.BackgroundColor3 = CYAN
+			moneyServer.TextColor3 = Color3.fromRGB(5, 10, 14)
+
+			moneyGlobal.BackgroundColor3 = BUTTON
+			moneyGlobal.TextColor3 = WHITE
+		else
+			moneyGlobal.BackgroundColor3 = CYAN
+			moneyGlobal.TextColor3 = Color3.fromRGB(5, 10, 14)
+
+			moneyServer.BackgroundColor3 = BUTTON
+			moneyServer.TextColor3 = WHITE
 		end
-	)
+	end
 
+	moneyServer.MouseButton1Click:Connect(function()
+		moneyScope = "Server"
+		updateMoneyScope()
+	end)
+
+	moneyGlobal.MouseButton1Click:Connect(function()
+		moneyScope = "Global"
+		updateMoneyScope()
+	end)
+
+	updateMoneyScope()
+
+	local giveMoney = makeButton(page, "GIVE MONEY")
+	giveMoney.Size = UDim2.fromOffset(160, 38)
+	giveMoney.Position = UDim2.fromOffset(320, 200)
+
+	giveMoney.MouseButton1Click:Connect(function()
+		local amount = tonumber(moneyAmount.Text)
+
+		if moneyUser.Text == "" or not amount then
+			return
+		end
+
+		Command:FireServer(
+			"GiveMoney",
+			moneyUser.Text,
+			amount,
+			moneyScope
+		)
+	end)
 end
 
 --==================================================
 -- MODERATION PAGE
+-- USES EXISTING MODERATION SYSTEM
 --==================================================
 
 local function showModeratePage()
-
 	clearPage()
 
-	makeLabel(
-		pageHolder,
-		"MODERATION",
-		UDim2.fromOffset(0, 0),
-		UDim2.new(1, 0, 0, 25)
-	)
+	local page = currentPage
 
-	local info =
-		Instance.new("TextLabel")
+	local heading = createText(page, "MODERATION", 18, WHITE)
+	heading.Position = UDim2.fromOffset(4, 2)
+	heading.Size = UDim2.new(1, 0, 0, 25)
 
-	info.BackgroundTransparency = 1
+	local username = makeTextBox(page, "Username")
+	username.Size = UDim2.fromOffset(280, 38)
+	username.Position = UDim2.fromOffset(4, 42)
 
-	info.Position =
-		UDim2.fromOffset(
-			0,
-			45
+	local reason = makeTextBox(page, "Reason")
+	reason.Size = UDim2.fromOffset(280, 38)
+	reason.Position = UDim2.fromOffset(4, 88)
+
+	local kick = makeButton(page, "KICK")
+	kick.Size = UDim2.fromOffset(130, 38)
+	kick.Position = UDim2.fromOffset(4, 136)
+
+	local ban = makeButton(page, "BAN")
+	ban.Size = UDim2.fromOffset(130, 38)
+	ban.Position = UDim2.fromOffset(144, 136)
+
+	local unban = makeButton(page, "UNBAN")
+	unban.Size = UDim2.fromOffset(130, 38)
+	unban.Position = UDim2.fromOffset(284, 136)
+
+	-- Existing ban duration value
+	local banDuration = 0
+
+	local durationLabel = createText(page, "BAN DURATION", 10, GRAY)
+	durationLabel.Position = UDim2.fromOffset(320, 42)
+	durationLabel.Size = UDim2.fromOffset(150, 20)
+
+	local durationBox = makeTextBox(page, "Seconds (0 = permanent)")
+	durationBox.Size = UDim2.fromOffset(280, 38)
+	durationBox.Position = UDim2.fromOffset(320, 65)
+
+	durationBox.FocusLost:Connect(function()
+		local value = tonumber(durationBox.Text)
+
+		if value then
+			banDuration = value
+		else
+			banDuration = 0
+		end
+	end)
+
+	kick.MouseButton1Click:Connect(function()
+		if username.Text == "" then
+			return
+		end
+
+		KickPlayerRemote:InvokeServer(
+			username.Text,
+			reason.Text
 		)
+	end)
 
-	info.Size =
-		UDim2.new(
-			1,
-			0,
-			0,
-			80
+	ban.MouseButton1Click:Connect(function()
+		if username.Text == "" then
+			return
+		end
+
+		BanPlayerRemote:InvokeServer(
+			username.Text,
+			reason.Text,
+			banDuration
 		)
+	end)
 
-	info.Text =
-		"Your existing moderation system stays separate from this panel."
+	unban.MouseButton1Click:Connect(function()
+		if username.Text == "" then
+			return
+		end
 
-	info.TextColor3 =
-		GRAY
+		UnbanPlayerRemote:InvokeServer(
+			username.Text
+		)
+	end)
 
-	info.TextSize = 13
-	info.Font = Enum.Font.Gotham
+	-- Existing ban list
+	local banListButton = makeButton(page, "GET BAN LIST")
+	banListButton.Size = UDim2.fromOffset(150, 36)
+	banListButton.Position = UDim2.fromOffset(4, 195)
 
-	info.TextWrapped = true
+	banListButton.MouseButton1Click:Connect(function()
+		local success, result = pcall(function()
+			return GetBanListRemote:InvokeServer()
+		end)
 
-	info.Parent =
-		pageHolder
+		if success then
+			print("BAN LIST:", result)
+		end
+	end)
 
+	-- Existing mod log if available
+	if GetModLogRemote then
+		local logButton = makeButton(page, "GET MOD LOG")
+		logButton.Size = UDim2.fromOffset(150, 36)
+		logButton.Position = UDim2.fromOffset(162, 195)
+
+		logButton.MouseButton1Click:Connect(function()
+			local success, result = pcall(function()
+				return GetModLogRemote:InvokeServer()
+			end)
+
+			if success then
+				print("MOD LOG:", result)
+			end
+		end)
+	end
+end
+
+--==================================================
+-- POLL PAGE
+-- USES EXISTING POLL SYSTEM
+--==================================================
+
+local function showPollPage()
+	clearPage()
+
+	local page = currentPage
+
+	local heading = createText(page, "POLLS", 18, WHITE)
+	heading.Position = UDim2.fromOffset(4, 2)
+	heading.Size = UDim2.new(1, 0, 0, 25)
+
+	local question = makeTextBox(page, "Question")
+	question.Size = UDim2.fromOffset(590, 38)
+	question.Position = UDim2.fromOffset(4, 42)
+
+	local duration = makeTextBox(page, "Duration")
+	duration.Size = UDim2.fromOffset(180, 38)
+	duration.Position = UDim2.fromOffset(4, 88)
+
+	local button1 = makeTextBox(page, "Answer 1")
+	button1.Size = UDim2.fromOffset(190, 38)
+	button1.Position = UDim2.fromOffset(4, 134)
+
+	local button2 = makeTextBox(page, "Answer 2")
+	button2.Size = UDim2.fromOffset(190, 38)
+	button2.Position = UDim2.fromOffset(202, 134)
+
+	local startPoll = makeButton(page, "START POLL")
+	startPoll.Size = UDim2.fromOffset(150, 40)
+	startPoll.Position = UDim2.fromOffset(4, 185)
+
+	local endPoll = makeButton(page, "END POLL")
+	endPoll.Size = UDim2.fromOffset(150, 40)
+	endPoll.Position = UDim2.fromOffset(162, 185)
+
+	startPoll.MouseButton1Click:Connect(function()
+		local q = question.Text
+		local d = tonumber(duration.Text) or 30
+		local b1 = button1.Text
+		local b2 = button2.Text
+
+		if q == "" or b1 == "" or b2 == "" then
+			return
+		end
+
+		FirePollRemote:FireServer(
+			q,
+			d,
+			b1,
+			b2
+		)
+	end)
+
+	endPoll.MouseButton1Click:Connect(function()
+		EndPollRemote:FireServer()
+	end)
 end
 
 --==================================================
 -- ANNOUNCEMENT PAGE
 --==================================================
 
-local function showAnnouncementPage()
-
+local function showAnnouncePage()
 	clearPage()
 
-	makeLabel(
-		pageHolder,
-		"ANNOUNCEMENT",
-		UDim2.fromOffset(0, 0),
-		UDim2.new(1, 0, 0, 25)
-	)
+	local page = currentPage
 
-	local announcementBox =
-		Instance.new("TextBox")
+	local heading = createText(page, "ANNOUNCEMENT", 18, WHITE)
+	heading.Position = UDim2.fromOffset(4, 2)
+	heading.Size = UDim2.new(1, 0, 0, 25)
 
-	announcementBox.Position =
-		UDim2.fromOffset(
-			12,
-			32
-		)
+	local message = makeTextBox(page, "Announcement message...")
+	message.Size = UDim2.fromOffset(590, 100)
+	message.Position = UDim2.fromOffset(4, 45)
+	message.TextWrapped = true
+	message.TextYAlignment = Enum.TextYAlignment.Top
 
-	announcementBox.Size =
-		UDim2.new(
-			1,
-			-24,
-			0,
-			115
-		)
+	local send = makeButton(page, "SEND ANNOUNCEMENT")
+	send.Size = UDim2.fromOffset(190, 40)
+	send.Position = UDim2.fromOffset(4, 155)
 
-	announcementBox.BackgroundColor3 =
-		DARK2
-
-	announcementBox.Text = ""
-
-	announcementBox.PlaceholderText =
-		"Type your announcement..."
-
-	announcementBox.PlaceholderColor3 =
-		GRAY
-
-	announcementBox.TextColor3 =
-		WHITE
-
-	announcementBox.TextSize = 16
-	announcementBox.Font =
-		Enum.Font.GothamMedium
-
-	announcementBox.TextWrapped =
-		true
-
-	announcementBox.TextXAlignment =
-		Enum.TextXAlignment.Left
-
-	announcementBox.TextYAlignment =
-		Enum.TextYAlignment.Top
-
-	announcementBox.MultiLine =
-		true
-
-	announcementBox.ClearTextOnFocus =
-		false
-
-	addNoOutline(
-		announcementBox
-	)
-
-	addCorner(
-		announcementBox,
-		7
-	)
-
-	announcementBox.Parent =
-		pageHolder
-
-	local counter =
-		Instance.new("TextLabel")
-
-	counter.BackgroundTransparency =
-		1
-
-	counter.Position =
-		UDim2.new(
-			1,
-			-130,
-			0,
-			150
-		)
-
-	counter.Size =
-		UDim2.fromOffset(
-			115,
-			20
-		)
-
-	counter.Text =
-		"0 / 250"
-
-	counter.TextColor3 =
-		GRAY
-
-	counter.TextSize = 11
-	counter.Font =
-		Enum.Font.Gotham
-
-	counter.TextXAlignment =
-		Enum.TextXAlignment.Right
-
-	counter.Parent =
-		pageHolder
-
-	announcementBox:GetPropertyChangedSignal(
-		"Text"
-	):Connect(
-		function()
-
-			if #announcementBox.Text >
-				250 then
-
-				announcementBox.Text =
-					string.sub(
-						announcementBox.Text,
-						1,
-						250
-					)
-
-			end
-
-			counter.Text =
-				tostring(
-					#announcementBox.Text
-				)
-				.. " / 250"
-
+	send.MouseButton1Click:Connect(function()
+		if message.Text == "" then
+			return
 		end
-	)
 
-	local send =
-		makeButton(
-			pageHolder,
-			"SEND ANNOUNCEMENT",
-			UDim2.fromOffset(
-				130,
-				180
-			),
-			UDim2.fromOffset(
-				300,
-				44
-			),
-			CYAN
-		)
-
-	send.TextColor3 =
-		Color3.fromRGB(
-			5,
-			30,
-			28
-		)
-
-	send.MouseButton1Click:Connect(
-		function()
-
-			if not ActionAnnouncement then
-
-				showAnnouncement(
-					"Announcement system is not connected."
-				)
-
-				return
-			end
-
-			local text =
-				announcementBox.Text
-
-			text =
-				string.gsub(
-					text,
-					"^%s+",
-					""
-				)
-
-			text =
-				string.gsub(
-					text,
-					"%s+$",
-					""
-				)
-
-			if text == "" then
-				return
-			end
-
-			ActionAnnouncement:FireServer(
-				"Custom",
-				text
-			)
-
-			announcementBox.Text = ""
-
-		end
-	)
-
+		ActionAnnouncement:FireServer(message.Text)
+	end)
 end
 
 --==================================================
--- TAB SWITCHING
+-- TAB SYSTEM
 --==================================================
-
-local tabs = {
-
-	luckTab,
-	spawnTab,
-	playerTab,
-	moderateTab,
-	announcementTab,
-
-}
 
 local function selectTab(selected)
-
 	for _, tab in ipairs(tabs) do
-
-		tab.BackgroundColor3 =
-			DARK2
-
-		tab.TextColor3 =
-			GRAY
-
+		if tab == selected then
+			tab.BackgroundColor3 = CYAN
+			tab.TextColor3 = Color3.fromRGB(5, 10, 14)
+		else
+			tab.BackgroundColor3 = BUTTON
+			tab.TextColor3 = GRAY
+		end
 	end
-
-	selected.BackgroundColor3 =
-		CYAN
-
-	selected.TextColor3 =
-		Color3.fromRGB(
-			5,
-			30,
-			28
-		)
-
 end
 
-luckTab.MouseButton1Click:Connect(
-	function()
+local function selectLuck()
+	selectTab(luckTab)
+	showLuckPage()
+end
 
-		selectTab(luckTab)
-		showLuckPage()
+local function selectSpawner()
+	selectTab(spawnerTab)
+	showSpawnerPage()
+end
 
-	end
-)
+local function selectPlayers()
+	selectTab(playersTab)
+	showPlayersPage()
+end
 
-spawnTab.MouseButton1Click:Connect(
-	function()
+local function selectModerate()
+	selectTab(moderateTab)
+	showModeratePage()
+end
 
-		selectTab(spawnTab)
-		showSpawnerPage()
+local function selectPolls()
+	selectTab(pollsTab)
+	showPollPage()
+end
 
-	end
-)
+local function selectAnnounce()
+	selectTab(announceTab)
+	showAnnouncePage()
+end
 
-playerTab.MouseButton1Click:Connect(
-	function()
-
-		selectTab(playerTab)
-		showPlayersPage()
-
-	end
-)
-
-moderateTab.MouseButton1Click:Connect(
-	function()
-
-		selectTab(moderateTab)
-		showModeratePage()
-
-	end
-)
-
-announcementTab.MouseButton1Click:Connect(
-	function()
-
-		selectTab(announcementTab)
-		showAnnouncementPage()
-
-	end
-)
+luckTab.MouseButton1Click:Connect(selectLuck)
+spawnerTab.MouseButton1Click:Connect(selectSpawner)
+playersTab.MouseButton1Click:Connect(selectPlayers)
+moderateTab.MouseButton1Click:Connect(selectModerate)
+pollsTab.MouseButton1Click:Connect(selectPolls)
+announceTab.MouseButton1Click:Connect(selectAnnounce)
 
 --==================================================
--- OPEN PANEL
+-- OPEN / CLOSE
 --==================================================
 
 local function openPanel()
-
-	if not IS_ADMIN then
-		return
-	end
-
 	panel.Visible = true
 
-	panel.Size =
-		UDim2.fromOffset(
-			520,
-			340
-		)
-
-	tween(
-		panel,
-		TweenInfo.new(
-			0.16,
-			Enum.EasingStyle.Back,
-			Enum.EasingDirection.Out
-		),
-		{
-			Size =
-				UDim2.fromOffset(
-					560,
-					365
-				)
-		}
-	):Play()
+	-- Always open at the full size.
+	panel.Size = UDim2.fromOffset(650, 440)
 
 	selectTab(luckTab)
 	showLuckPage()
-
 end
-
---==================================================
--- CLOSE PANEL
---==================================================
 
 local function closePanel()
-
 	panel.Visible = false
-
 end
 
---==================================================
--- GEAR BUTTON
---==================================================
-
-openButton.MouseButton1Click:Connect(
-	function()
-
-		playClick()
-
-		if panel.Visible then
-
-			closePanel()
-
-		else
-
-			openPanel()
-
-		end
-
-	end
-)
-
---==================================================
--- CLOSE
---==================================================
-
-close.MouseButton1Click:Connect(
-	function()
-
-		playClick()
-
+openButton.MouseButton1Click:Connect(function()
+	if panel.Visible then
 		closePanel()
-
+	else
+		openPanel()
 	end
-)
+end)
+
+closeButton.MouseButton1Click:Connect(closePanel)
 
 --==================================================
 -- E KEY
 --==================================================
 
-UserInputService.InputBegan:Connect(
-	function(
-		input,
-		processed
-	)
+UserInputService.InputBegan:Connect(function(input, processed)
+	if processed then
+		return
+	end
 
-		if processed then
+	if input.KeyCode == Enum.KeyCode.E then
+		if not gui.Enabled then
 			return
 		end
-
-		if input.KeyCode ~=
-			Enum.KeyCode.E then
-
-			return
-
-		end
-
-		if not IS_ADMIN then
-			return
-		end
-
-		playClick()
 
 		if panel.Visible then
-
 			closePanel()
-
 		else
-
 			openPanel()
-
 		end
-
 	end
+end)
+
+--==================================================
+-- EXISTING POLL DISPLAY
+--==================================================
+
+FirePollRemote.OnClientEvent:Connect(function(
+	questionText,
+	pollDuration,
+	pollButton1,
+	pollButton2,
+	votes1,
+	votes2
 )
-
---==================================================
--- SERVER UI EVENTS
---==================================================
-
-UI.OnClientEvent:Connect(
-	function(
-		action,
-		data
+	print(
+		"Poll:",
+		questionText,
+		pollDuration,
+		pollButton1,
+		pollButton2,
+		votes1,
+		votes2
 	)
-
-		--==================================================
-		-- AUTHORIZED
-		--==================================================
-
-		if action == "Authorized" then
-
-			openButton.Visible = true
-
-			return
-
-		end
-
-		--==================================================
-		-- ERROR
-		--==================================================
-
-		if action == "Error" then
-
-			warn(
-				"[ADMIN ERROR]",
-				data
-			)
-
-			showAnnouncement(
-				"⚠ "
-				.. tostring(data)
-			)
-
-			return
-
-		end
-
-		--==================================================
-		-- SUCCESS
-		--==================================================
-
-		if action == "Success" then
-
-			print(
-				"[ADMIN]",
-				data
-			)
-
-			showAnnouncement(
-				"✓ "
-				.. tostring(data)
-			)
-
-			return
-
-		end
-
-		--==================================================
-		-- LUCK
-		--==================================================
-
-		if action == "Luck" then
-
-			if typeof(data) ~=
-				"table" then
-
-				return
-
-			end
-
-			local multiplier =
-				tonumber(
-					data.Multiplier
-				)
-
-			local duration =
-				tonumber(
-					data.Duration
-				)
-
-			if not multiplier
-				or not duration then
-
-				return
-
-			end
-
-			-- Same multiplier = add time
-			if currentLuckMultiplier ==
-				multiplier
-				and luckHud.Visible
-				and luckEndTime >
-					os.clock() then
-
-				luckEndTime =
-					luckEndTime +
-					duration
-
-			else
-
-				-- Different multiplier
-				-- replaces the old one
-				luckEndTime =
-					os.clock() +
-					duration
-
-			end
-
-			currentLuckMultiplier =
-				multiplier
-
-			luckMultiplier.Text =
-				tostring(multiplier)
-				.. "X LUCK"
-
-			updateLuckColor(
-				multiplier
-			)
-
-			if data.Scope ==
-				"Global" then
-
-				luckScope.Text =
-					"GLOBAL"
-
-			else
-
-				luckScope.Text =
-					"SERVER"
-
-			end
-
-			luckHud.Visible =
-				true
-
-			return
-
-		end
-
-		--==================================================
-		-- STOP LUCK
-		--==================================================
-
-		if action == "StopLuck" then
-
-			luckHud.Visible =
-				false
-
-			luckEndTime = 0
-
-			currentLuckMultiplier =
-				nil
-
-			return
-
-		end
-
-		--==================================================
-		-- ANNOUNCEMENT
-		--==================================================
-
-		if action == "Announcement" then
-
-			if typeof(data) ==
-				"string" then
-
-				showAnnouncement(data)
-
-			elseif typeof(data) ==
-				"table" then
-
-				showAnnouncement(
-					data.Text
-						or data.Message
-						or ""
-				)
-
-			end
-
-			return
-
-		end
-
-	end
-)
-
---==================================================
--- OPTIONAL EXISTING ANNOUNCEMENT SYSTEM
---==================================================
-
-if ActionAnnouncement then
-
-	ActionAnnouncement.OnClientEvent:Connect(
-		function(
-			action,
-			message
-		)
-
-			if typeof(message) ==
-				"string" then
-
-				showAnnouncement(
-					message
-				)
-
-			elseif typeof(action) ==
-				"string" then
-
-				showAnnouncement(
-					action
-				)
-
-			end
-
-		end
-	)
-
+end)
+
+EndPollRemote.OnClientEvent:Connect(function(votes1, votes2)
+	print("Poll ended:", votes1, votes2)
+end)
+
+-- Existing vote system can still fire these.
+local function vote1()
+	VotePollRemote:FireServer(1)
+end
+
+local function vote2()
+	VotePollRemote:FireServer(2)
 end
 
 --==================================================
--- ENABLE
+-- ADMIN SERVER RESPONSES
 --==================================================
 
-gui.Enabled = true
+UI.OnClientEvent:Connect(function(action, data)
 
-openButton.Visible = true
+	if action == "Authorized" then
+		gui.Enabled = true
+		openButton.Visible = true
+
+	elseif action == "Error" then
+		warn("[ADMIN PANEL]", data)
+
+	elseif action == "Success" then
+		print("[ADMIN PANEL]", data)
+
+	elseif action == "Luck" then
+		print(
+			"Luck activated:",
+			data.Multiplier,
+			data.Duration,
+			data.Scope
+		)
+
+	elseif action == "StopLuck" then
+		print("Luck stopped")
+
+	elseif action == "Announcement" then
+		print("Announcement:", data)
+	end
+end)
+
+--==================================================
+-- EXISTING ACTION ANNOUNCEMENTS
+--==================================================
+
+ActionAnnouncement.OnClientEvent:Connect(function(message)
+	print("Announcement:", message)
+end)
 
 --==================================================
 -- CHECK ADMIN
 --==================================================
 
-task.delay(
-	1,
-	function()
+task.wait(1)
 
-		Command:FireServer(
-			"CheckAdmin"
-		)
-
-	end
-)
-
-print(
-	"Fight for Brainrots Admin Client Loaded | Admin:",
-	IS_ADMIN
-)
+Command:FireServer("CheckAdmin")
